@@ -72,8 +72,8 @@ app.get('/api/itinerary', auth, async (req, res) => {
   }
 });
 
-// Catch-all route to serve frontend for any other routes
-app.get('/*', (req, res) => {
+// Handle all other routes by serving the main HTML file (for SPA routing)
+app.use((req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
