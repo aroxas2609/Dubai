@@ -8,11 +8,20 @@ const basicAuth = require('basic-auth');
 const cors = require('cors');
 const { google } = require('googleapis');
 const fs = require('fs');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3002;
 
 // CORS for frontend
 app.use(cors());
+
+// Serve static files from frontend directory
+app.use(express.static(path.join(__dirname, '../frontend')));
+
+// Serve the main HTML file
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
 
 // Basic Auth Middleware
 const auth = (req, res, next) => {
@@ -61,6 +70,11 @@ app.get('/api/itinerary', auth, async (req, res) => {
     console.error('Error fetching data:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// Catch-all route to serve frontend for any other routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
 app.listen(PORT, () => {
