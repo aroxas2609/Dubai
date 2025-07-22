@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dubai Trip Itinerary</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700;900&family=Dancing+Script:wght@400;700&family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #d4af37 0%, #f4e4bc 25%, #e6d7a8 50%, #d4af37 75%, #b8860b 100%);
+            background-size: 400% 400%;
+            animation: desertGradient 8s ease-in-out infinite;
+            min-height: 100vh;
+            padding: 20px;
+            color: #2c1810;
+        }
+
+        @keyframes desertGradient {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #faf8f3 0%, #f5f1e8 100%);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            overflow: hidden;
+            border: 1px solid rgba(212, 175, 55, 0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 30%, rgba(212, 175, 55, 0.1) 50%, transparent 70%);
+            animation: shimmer 3s ease-in-out infinite;
+        }
+
+        @keyframes shimmer {
+            0%, 100% { transform: translateX(-100%); }
+            50% { transform: translateX(100%); }
+        }
+
+        .header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 3.5rem;
+            font-weight: 900;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #d4af37, #f4e4bc, #ffd700, #b8860b, #d4af37);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 3s ease-in-out infinite;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            letter-spacing: 2px;
+            position: relative;
+            z-index: 1;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .header p {
+            font-family: 'Dancing Script', cursive;
+            font-size: 1.4rem;
+            font-weight: 400;
+            opacity: 0.95;
+            color: #f4e4bc;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            margin-top: 5px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .demo-notice {
+            background: linear-gradient(135deg, #f8f6f0 0%, #f0ede5 100%);
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        .demo-notice h2 {
+            color: #1a1a2e;
+            margin-bottom: 10px;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .demo-notice p {
+            color: #6c757d;
+            margin-bottom: 15px;
+        }
+
+        .demo-button {
+            background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+            color: #1a1a2e;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .demo-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
+            background: linear-gradient(135deg, #f4e4bc 0%, #d4af37 100%);
+        }
+
+        .day-section {
+            margin-bottom: 40px;
+            background: linear-gradient(135deg, #f8f6f0 0%, #f0ede5 100%);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: 1px solid rgba(212, 175, 55, 0.1);
+        }
+
+        .day-header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 25px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid #d4af37;
+        }
+
+        .day-header h2 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .day-header .day-name {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+
+        .day-content {
+            padding: 30px;
+            background: linear-gradient(135deg, #fefcf7 0%, #faf8f3 100%);
+        }
+
+        .day-content h3 {
+            margin-bottom: 20px;
+            color: #1a1a2e;
+            font-size: 1.2rem;
+        }
+
+        .itinerary-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: linear-gradient(135deg, #fefcf7 0%, #faf8f3 100%);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid rgba(212, 175, 55, 0.1);
+        }
+
+        .itinerary-table th {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #f4e4bc;
+            padding: 16px 20px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #d4af37;
+        }
+
+        .itinerary-table td {
+            padding: 16px 20px;
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: top;
+        }
+
+        .itinerary-table tr:hover {
+            background: linear-gradient(135deg, #f5f1e8 0%, #f0ede5 100%);
+        }
+
+        .itinerary-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .time-cell {
+            font-weight: 600;
+            color: #b8860b;
+            min-width: 100px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .title-cell {
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .label-cell {
+            color: #495057;
+        }
+
+        .notes-cell {
+            color: #6c757d;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .notes-cell a,
+        .label-cell a,
+        .cost-cell a {
+            color: #d4af37 !important;
+            text-decoration: underline !important;
+            word-break: break-all !important;
+            transition: color 0.3s ease !important;
+        }
+
+        .notes-cell a:hover,
+        .label-cell a:hover,
+        .cost-cell a:hover {
+            color: #b8860b !important;
+            text-decoration: none !important;
+        }
+
+        .cost-cell {
+            font-weight: 500;
+            color: #d4af37;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #6c757d;
+            font-size: 1.1rem;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #f5c6cb;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px;
+            color: #6c757d;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+                font-size: 14px;
+            }
+            
+            .container {
+                border-radius: 10px;
+                margin: 0;
+                box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+                border: 1px solid rgba(212, 175, 55, 0.1);
+            }
+            
+            .header {
+                padding: 20px 15px;
+            }
+            
+            .header h1 {
+                font-size: 2.2rem;
+                margin-bottom: 10px;
+                letter-spacing: 1px;
+            }
+            
+            .header p {
+                font-size: 1.2rem;
+            }
+            
+            .content {
+                padding: 15px;
+            }
+            
+            .day-section {
+                margin-bottom: 25px;
+                border-radius: 12px;
+            }
+            
+            .day-header {
+                padding: 20px 15px;
+                flex-direction: column;
+                text-align: center;
+                gap: 5px;
+            }
+            
+            .day-header h2 {
+                font-size: 1.3rem;
+                margin: 0;
+            }
+            
+            .day-header .day-name {
+                font-size: 1rem;
+            }
+            
+            .day-content {
+                padding: 20px 15px;
+            }
+            
+            .day-content h3 {
+                font-size: 1.1rem !important;
+                margin-bottom: 15px !important;
+            }
+            
+            .itinerary-table {
+                font-size: 13px;
+                border-radius: 8px;
+            }
+            
+            .itinerary-table th,
+            .itinerary-table td {
+                padding: 10px 8px;
+                word-wrap: break-word;
+                max-width: 0;
+            }
+            
+            .itinerary-table th {
+                font-size: 12px;
+                padding: 12px 8px;
+            }
+            
+            @media (max-width: 480px) {
+                .itinerary-table {
+                    display: block !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    width: 100% !important;
+                }
+                
+                .itinerary-table thead {
+                    display: none !important;
+                }
+                
+                .itinerary-table tbody {
+                    display: block !important;
+                }
+                
+                .itinerary-table tr {
+                    display: block !important;
+                    margin-bottom: 20px !important;
+                    border: 1px solid rgba(212, 175, 55, 0.2) !important;
+                    border-radius: 12px !important;
+                    background: linear-gradient(135deg, #fefcf7 0%, #faf8f3 100%) !important;
+                    padding: 20px !important;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+                    width: 100% !important;
+                }
+                
+                .itinerary-table td {
+                    display: block !important;
+                    border: none !important;
+                    padding: 12px 0 !important;
+                    text-align: left !important;
+                    word-wrap: break-word !important;
+                    white-space: normal !important;
+                    line-height: 1.5 !important;
+                    width: 100% !important;
+                    max-width: none !important;
+                }
+                
+                .itinerary-table td:before {
+                    content: attr(data-label) ": " !important;
+                    font-weight: 600 !important;
+                    color: #b8860b !important;
+                    display: block !important;
+                    margin-bottom: 4px !important;
+                    font-size: 14px !important;
+                }
+                
+                .time-cell {
+                    font-weight: 600 !important;
+                    color: #b8860b !important;
+                    font-size: 16px !important;
+                    white-space: nowrap !important;
+                    overflow: hidden !important;
+                    text-overflow: ellipsis !important;
+                }
+                
+                .label-cell {
+                    font-weight: 500 !important;
+                    color: #2c3e50 !important;
+                    font-size: 15px !important;
+                }
+                
+                .notes-cell {
+                    color: #6c757d !important;
+                    font-size: 14px !important;
+                }
+                
+                .notes-cell a,
+                .label-cell a,
+                .cost-cell a {
+                    color: #d4af37 !important;
+                    text-decoration: underline !important;
+                    word-break: break-all !important;
+                    font-size: 13px !important;
+                }
+                
+                .cost-cell {
+                    font-weight: 500 !important;
+                    color: #d4af37 !important;
+                    font-size: 15px !important;
+                }
+            }
+            
+            .loading {
+                padding: 40px 20px;
+                font-size: 1rem;
+            }
+            
+            .error {
+                padding: 15px;
+                font-size: 14px;
+                margin: 15px 0;
+            }
+            
+            .no-data {
+                padding: 40px 20px;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Dubai Adventure</h1>
+            <p>Your personalized itinerary awaits</p>
+        </div>
+
+        <div class="content">
+            <div class="demo-notice">
+                <h2>🌟 Demo Version</h2>
+                <p>This is a demo of the Dubai Itinerary App. The full version connects to Google Sheets for real-time data.</p>
+                <a href="https://github.com/YOUR_USERNAME/dubai-itinerary" class="demo-button" target="_blank">View Full Project</a>
+            </div>
+
+            <div class="day-section">
+                <div class="day-header">
+                    <h2>25/09/2025</h2>
+                    <span class="day-name">Day 1</span>
+                </div>
+                <div class="day-content">
+                    <h3>First Day, relax and get to know Dubai</h3>
+                    <table class="itinerary-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Activity</th>
+                                <th>Notes</th>
+                                <th>Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="time-cell" data-label="Time">4:30 AM</td>
+                                <td class="label-cell" data-label="Activity">Sam and Calvin pick up from airport</td>
+                                <td class="notes-cell" data-label="Notes"></td>
+                                <td class="cost-cell" data-label="Cost"></td>
+                            </tr>
+                            <tr>
+                                <td class="time-cell" data-label="Time">10:00 AM</td>
+                                <td class="label-cell" data-label="Activity">Go to Dubai mall; walk around, have lunch (suggest Time Out Markets), Arte Museum is in the mall; Burj Khalifa</td>
+                                <td class="notes-cell" data-label="Notes">Burj Khalifa - prices vary depending on what levels you want to go to and what time of day. Levels 124 and 125 at a normal time is AED179 pp. Levels 124, 125 and 148 is AED399pp. Levels 152, 153 and 154 is AED 738 pp. Arte Museum AED169 per adult AED99 per child</td>
+                                <td class="cost-cell" data-label="Cost"></td>
+                            </tr>
+                            <tr>
+                                <td class="time-cell" data-label="Time">2:00 PM</td>
+                                <td class="label-cell" data-label="Activity">Desert Safari Adventure</td>
+                                <td class="notes-cell" data-label="Notes">AED 550 for a car of 6 people <a href="https://arabiantours.travel/experience/morning-desert-safari" target="_blank">https://arabiantours.travel/experience/morning-desert-safari</a></td>
+                                <td class="cost-cell" data-label="Cost">AED 550</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="day-section">
+                <div class="day-header">
+                    <h2>26/09/2025</h2>
+                    <span class="day-name">Day 2</span>
+                </div>
+                <div class="day-content">
+                    <h3>Explore the wonders of Dubai</h3>
+                    <table class="itinerary-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Activity</th>
+                                <th>Notes</th>
+                                <th>Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="time-cell" data-label="Time">9:00 AM</td>
+                                <td class="label-cell" data-label="Activity">Visit Palm Jumeirah and Atlantis</td>
+                                <td class="notes-cell" data-label="Notes">Optional: Aquaventure Waterpark tickets available</td>
+                                <td class="cost-cell" data-label="Cost">Free (entry)</td>
+                            </tr>
+                            <tr>
+                                <td class="time-cell" data-label="Time">1:00 PM</td>
+                                <td class="label-cell" data-label="Activity">Lunch at Dubai Marina</td>
+                                <td class="notes-cell" data-label="Notes">Many restaurants with waterfront views</td>
+                                <td class="cost-cell" data-label="Cost">Varies</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 
