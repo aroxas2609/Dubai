@@ -1,0 +1,24 @@
+{
+  "name": "dubai-itinerary",
+  "version": "1.0.0",
+  "description": "Dubai Trip Itinerary App",
+  "main": "backend/index.js",
+  "scripts": {
+    "start": "node backend/index.js",
+    "dev": "node backend/index.js",
+    "build": "echo 'No build step required for static site'"
+  },
+  "keywords": ["dubai", "itinerary", "travel"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "basic-auth": "^2.0.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "googleapis": "^153.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+} 

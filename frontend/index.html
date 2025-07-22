@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dubai Trip Itinerary</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700;900&family=Dancing+Script:wght@400;700&family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #d4af37 0%, #f4e4bc 25%, #e6d7a8 50%, #d4af37 75%, #b8860b 100%);
+            background-size: 400% 400%;
+            animation: desertGradient 8s ease-in-out infinite;
+            min-height: 100vh;
+            padding: 20px;
+            color: #2c1810;
+        }
+
+        @keyframes desertGradient {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #faf8f3 0%, #f5f1e8 100%);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            overflow: hidden;
+            border: 1px solid rgba(212, 175, 55, 0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 30%, rgba(212, 175, 55, 0.1) 50%, transparent 70%);
+            animation: shimmer 3s ease-in-out infinite;
+        }
+
+        @keyframes shimmer {
+            0%, 100% { transform: translateX(-100%); }
+            50% { transform: translateX(100%); }
+        }
+
+        .header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 3.5rem;
+            font-weight: 900;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #d4af37, #f4e4bc, #ffd700, #b8860b, #d4af37);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 3s ease-in-out infinite;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            letter-spacing: 2px;
+            position: relative;
+            z-index: 1;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .header p {
+            font-family: 'Dancing Script', cursive;
+            font-size: 1.4rem;
+            font-weight: 400;
+            opacity: 0.95;
+            color: #f4e4bc;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            margin-top: 5px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .login-section {
+            background: linear-gradient(135deg, #f8f6f0 0%, #f0ede5 100%);
+            padding: 30px;
+            text-align: center;
+            border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+        }
+
+        .login-form {
+            display: inline-flex;
+            gap: 15px;
+            align-items: center;
+            background: linear-gradient(135deg, #fefcf7 0%, #faf8f3 100%);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: 1px solid rgba(212, 175, 55, 0.15);
+        }
+
+        .login-form input {
+            padding: 12px 16px;
+            border: 2px solid rgba(212, 175, 55, 0.2);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+            background: #fefcf7;
+            color: #2c1810;
+        }
+
+        .login-form input:focus {
+            outline: none;
+            border-color: #d4af37;
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+            background: #fefcf7;
+        }
+
+        .login-form button {
+            background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+            color: #1a1a2e;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+        }
+
+        .login-form button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
+            background: linear-gradient(135deg, #f4e4bc 0%, #d4af37 100%);
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .day-section {
+            margin-bottom: 40px;
+            background: linear-gradient(135deg, #f8f6f0 0%, #f0ede5 100%);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: 1px solid rgba(212, 175, 55, 0.1);
+        }
+
+        .day-header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 25px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid #d4af37;
+        }
+
+        .day-header h2 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .day-header .day-name {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+
+        .day-content {
+            padding: 30px;
+            background: linear-gradient(135deg, #fefcf7 0%, #faf8f3 100%);
+        }
+
+        .itinerary-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: linear-gradient(135deg, #fefcf7 0%, #faf8f3 100%);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid rgba(212, 175, 55, 0.1);
+        }
+
+        .itinerary-table th {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #f4e4bc;
+            padding: 16px 20px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #d4af37;
+        }
+
+        .itinerary-table td {
+            padding: 16px 20px;
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: top;
+        }
+
+        .itinerary-table tr:hover {
+            background: linear-gradient(135deg, #f5f1e8 0%, #f0ede5 100%);
+        }
+
+        .itinerary-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .time-cell {
+            font-weight: 600;
+            color: #b8860b;
+            min-width: 100px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .title-cell {
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .label-cell {
+            color: #495057;
+        }
+
+        .notes-cell {
+            color: #6c757d;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .notes-cell a,
+        .label-cell a,
+        .cost-cell a {
+            color: #d4af37 !important;
+            text-decoration: underline !important;
+            word-break: break-all !important;
+            transition: color 0.3s ease !important;
+        }
+
+        .notes-cell a:hover,
+        .label-cell a:hover,
+        .cost-cell a:hover {
+            color: #b8860b !important;
+            text-decoration: none !important;
+        }
+
+        .cost-cell {
+            font-weight: 500;
+            color: #d4af37;
+        }
+
+
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #6c757d;
+            font-size: 1.1rem;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #f5c6cb;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px;
+            color: #6c757d;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+                font-size: 14px;
+            }
+            
+            .container {
+                border-radius: 10px;
+                margin: 0;
+                box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+                border: 1px solid rgba(212, 175, 55, 0.1);
+            }
+            
+            .header {
+                padding: 20px 15px;
+            }
+            
+            .header h1 {
+                font-size: 2.2rem;
+                margin-bottom: 10px;
+                letter-spacing: 1px;
+            }
+            
+            .header p {
+                font-size: 1.2rem;
+            }
+            
+            .login-section {
+                padding: 20px 15px;
+            }
+            
+            .login-form {
+                flex-direction: column;
+                width: 100%;
+                max-width: 280px;
+                padding: 15px;
+                gap: 10px;
+            }
+            
+            .login-form input {
+                padding: 15px 12px;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+            
+            .login-form button {
+                padding: 15px 20px;
+                font-size: 16px;
+                width: 100%;
+            }
+            
+            .content {
+                padding: 15px;
+            }
+            
+            .day-section {
+                margin-bottom: 25px;
+                border-radius: 12px;
+            }
+            
+            .day-header {
+                padding: 20px 15px;
+                flex-direction: column;
+                text-align: center;
+                gap: 5px;
+            }
+            
+            .day-header h2 {
+                font-size: 1.3rem;
+                margin: 0;
+            }
+            
+            .day-header .day-name {
+                font-size: 1rem;
+            }
+            
+            .day-content {
+                padding: 20px 15px;
+            }
+            
+            .day-content h3 {
+                font-size: 1.1rem !important;
+                margin-bottom: 15px !important;
+            }
+            
+            /* Mobile table improvements */
+            .itinerary-table {
+                font-size: 13px;
+                border-radius: 8px;
+            }
+            
+            .itinerary-table th,
+            .itinerary-table td {
+                padding: 10px 8px;
+                word-wrap: break-word;
+                max-width: 0;
+            }
+            
+            .itinerary-table th {
+                font-size: 12px;
+                padding: 12px 8px;
+            }
+            
+            /* Stack table on very small screens */
+            @media (max-width: 480px) {
+                .itinerary-table {
+                    display: block !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    width: 100% !important;
+                }
+                
+                .itinerary-table thead {
+                    display: none !important;
+                }
+                
+                .itinerary-table tbody {
+                    display: block !important;
+                }
+                
+                .itinerary-table tr {
+                    display: block !important;
+                    margin-bottom: 20px !important;
+                    border: 1px solid rgba(212, 175, 55, 0.2) !important;
+                    border-radius: 12px !important;
+                    background: linear-gradient(135deg, #fefcf7 0%, #faf8f3 100%) !important;
+                    padding: 20px !important;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+                    width: 100% !important;
+                }
+                
+                .itinerary-table td {
+                    display: block !important;
+                    border: none !important;
+                    padding: 12px 0 !important;
+                    text-align: left !important;
+                    word-wrap: break-word !important;
+                    white-space: normal !important;
+                    line-height: 1.5 !important;
+                    width: 100% !important;
+                    max-width: none !important;
+                }
+                
+                .itinerary-table td:before {
+                    content: attr(data-label) ": " !important;
+                    font-weight: 600 !important;
+                    color: #b8860b !important;
+                    display: block !important;
+                    margin-bottom: 4px !important;
+                    font-size: 14px !important;
+                }
+                
+                .time-cell {
+                    font-weight: 600 !important;
+                    color: #b8860b !important;
+                    font-size: 16px !important;
+                    white-space: nowrap !important;
+                    overflow: hidden !important;
+                    text-overflow: ellipsis !important;
+                }
+                
+                .label-cell {
+                    font-weight: 500 !important;
+                    color: #2c3e50 !important;
+                    font-size: 15px !important;
+                }
+                
+                .notes-cell {
+                    color: #6c757d !important;
+                    font-size: 14px !important;
+                }
+
+                .notes-cell a,
+                .label-cell a,
+                .cost-cell a {
+                    color: #d4af37 !important;
+                    text-decoration: underline !important;
+                    word-break: break-all !important;
+                    font-size: 13px !important;
+                }
+                
+                .cost-cell {
+                    font-weight: 500 !important;
+                    color: #d4af37 !important;
+                    font-size: 15px !important;
+                }
+            }
+            
+            .loading {
+                padding: 40px 20px;
+                font-size: 1rem;
+            }
+            
+            .error {
+                padding: 15px;
+                font-size: 14px;
+                margin: 15px 0;
+            }
+            
+            .no-data {
+                padding: 40px 20px;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Dubai Adventure</h1>
+            <p>Your personalized itinerary awaits</p>
+        </div>
+
+        <div class="login-section" id="loginSection">
+            <form class="login-form" onsubmit="login(event)">
+                <input type="text" id="username" placeholder="Username" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit">Login</button>
+            </form>
+        </div>
+
+        <div class="content" id="content" style="display: none;">
+            <div id="itinerary"></div>
+        </div>
+    </div>
+
+    <script>
+        function login(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            // Store credentials for API calls
+            sessionStorage.setItem('credentials', btoa(username + ':' + password));
+            
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+            
+            fetchItinerary();
+        }
+
+        async function fetchItinerary() {
+            const itineraryDiv = document.getElementById('itinerary');
+            itineraryDiv.innerHTML = '<div class="loading">Loading your itinerary...</div>';
+            
+            // Force mobile styles to apply
+            if (window.innerWidth <= 480) {
+                document.body.classList.add('mobile-view');
+            }
+            
+            try {
+                const credentials = sessionStorage.getItem('credentials');
+                // Add cache-busting parameter to force fresh data
+                // Use environment-specific backend URL
+                const backendUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+                    ? 'http://localhost:3002' 
+                    : window.location.origin;
+                const response = await fetch(backendUrl + '/api/itinerary?t=' + Date.now(), {
+                    headers: {
+                        'Authorization': 'Basic ' + credentials,
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Authentication failed');
+                }
+                
+                const data = await response.json();
+                console.log('Fresh data fetched:', data);
+                renderItinerary(data);
+            } catch (error) {
+                itineraryDiv.innerHTML = `<div class="error">Error loading itinerary: ${error.message}</div>`;
+            }
+        }
+
+        // Function to detect and format URLs in text
+        function formatTextWithLinks(text) {
+            if (!text) return '';
+            
+            // Regular expression to match URLs
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            
+            // Replace URLs with clickable links
+            return text.replace(urlRegex, function(url) {
+                return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #d4af37; text-decoration: underline; word-break: break-all;">${url}</a>`;
+            });
+        }
+
+        function renderItinerary(data) {
+            const itineraryDiv = document.getElementById('itinerary');
+            
+            console.log('Raw data:', data);
+            
+            if (!data || data.length < 2) {
+                itineraryDiv.innerHTML = '<div class="no-data">No itinerary data available</div>';
+                return;
+            }
+
+            // Debug: Log all rows to see the structure
+            console.log('All rows in data:');
+            data.forEach((row, index) => {
+                if (row && row.length > 0) {
+                    console.log(`Row ${index}:`, row);
+                }
+            });
+
+            // Use default headers since the Google Sheet doesn't have explicit headers
+            const headerRow = ['', '', '', 'Time', 'Activity', 'Notes', 'Cost'];
+            console.log('Using default headers:', headerRow);
+
+            // Extract the table headers (skip Date, Day, Title columns)
+            const tableHeaders = headerRow.slice(3); // Get columns 3, 4, 5, 6 (Time, Label, Notes, Cost)
+            console.log('Table headers to display:', tableHeaders);
+
+            let html = '';
+
+            // Group data by day - improved approach
+            let dayGroups = [];
+            let currentGroup = null;
+
+            for (let i = 0; i < data.length; i++) {
+                const row = data[i];
+                if (!row || row.length === 0) continue;
+
+                console.log(`Processing row ${i}:`, row);
+
+                // Check if this is a new day (has date in first column and looks like a date)
+                if (row[0] && (row[0].includes('/') || row[0].includes('-')) && 
+                    (row[0].length >= 8 && row[0].length <= 12)) {
+                    if (currentGroup) {
+                        dayGroups.push(currentGroup);
+                    }
+                    currentGroup = {
+                        date: row[0].trim(),
+                        day: row[1] ? row[1].trim() : '',
+                        title: row[2] ? row[2].trim() : '',
+                        rows: []
+                    };
+                    console.log('New day group created:', currentGroup);
+                    
+                    // If this day header row also contains activity data (columns 3+), add it as the first activity
+                    if (row.length > 3 && (row[3] || row[4] || row[5] || row[6])) {
+                        const activityRow = ['', '', '', row[3] || '', row[4] || '', row[5] || '', row[6] || ''];
+                        currentGroup.rows.push(activityRow);
+                        console.log('Added activity from day header row:', activityRow);
+                    }
+                } else if (currentGroup && row.length > 0) {
+                    // Add any non-empty row that comes after a day header
+                    // This will capture all activities including the first one
+                    currentGroup.rows.push(row);
+                    console.log('Added row to current day:', row);
+                }
+            }
+
+            // Add the last group
+            if (currentGroup) {
+                dayGroups.push(currentGroup);
+            }
+
+            console.log('Day groups:', dayGroups);
+
+            // Render each day
+            dayGroups.forEach(group => {
+                console.log('Processing day group:', group);
+                console.log('Group rows:', group.rows);
+                
+                html += `
+                    <div class="day-section">
+                        <div class="day-header">
+                            <h2>${group.date}</h2>
+                            <span class="day-name">${group.day}</span>
+                        </div>
+                        <div class="day-content">
+                            ${group.title ? `<h3 style="margin-bottom: 20px; color: #2c3e50; font-size: 1.2rem;">${group.title}</h3>` : ''}
+                            <table class="itinerary-table">
+                                <thead>
+                                    <tr>
+                                        ${tableHeaders.map(header => `<th>${header || ''}</th>`).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${group.rows
+                                        .filter(row => {
+                                            // Filter out completely empty rows
+                                            return row.some((cell, index) => {
+                                                // Check if there's any meaningful data in columns 3+ (Time, Activity, Notes, Cost)
+                                                return index >= 3 && cell && cell.trim();
+                                            });
+                                        })
+                                        .map((row, rowIndex) => {
+                                            console.log(`Row ${rowIndex}:`, row);
+                                            
+                                            // Extract Time, Label, Notes, Cost from the row
+                                            // Based on the console output, the correct mapping is:
+                                            const time = row[3] || '';
+                                            const label = row[4] || '';
+                                            const notes = row[5] || '';
+                                            const cost = row[6] || '';
+                                            
+                                            console.log(`Row ${rowIndex} mapped:`, { time, label, notes, cost });
+                                            
+                                            const rowHtml = '<tr>' + [
+                                                `<td class="time-cell" data-label="Time">${time}</td>`,
+                                                `<td class="label-cell" data-label="Activity">${formatTextWithLinks(label)}</td>`,
+                                                `<td class="notes-cell" data-label="Notes">${formatTextWithLinks(notes)}</td>`,
+                                                `<td class="cost-cell" data-label="Cost">${formatTextWithLinks(cost)}</td>`
+                                            ].join('') + '</tr>';
+                                            
+                                            console.log(`Row ${rowIndex} HTML:`, rowHtml);
+                                            return rowHtml;
+                                        }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            });
+
+            itineraryDiv.innerHTML = html;
+            
+            if (!html.trim()) {
+                itineraryDiv.innerHTML = '<div class="no-data">No itinerary data found</div>';
+            }
+        }
+
+        // Handle window resize for mobile responsiveness
+        window.addEventListener('resize', function() {
+            if (window.innerWidth <= 480) {
+                document.body.classList.add('mobile-view');
+            } else {
+                document.body.classList.remove('mobile-view');
+            }
+        });
+    </script>
+</body>
+</html> 
