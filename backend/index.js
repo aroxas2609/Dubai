@@ -73,7 +73,7 @@ app.get('/api/itinerary', auth, async (req, res) => {
 });
 
 // Catch-all route to serve frontend for any other routes
-app.get('*', (req, res) => {
+app.get('/*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
