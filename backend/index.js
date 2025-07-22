@@ -44,13 +44,45 @@ console.log('Using sheet ID:', SHEET_ID);
 console.log('Using sheet range:', SHEET_RANGE);
 
 function getSheetsClient() {
-  const credentials = JSON.parse(fs.readFileSync(process.env.GOOGLE_SERVICE_ACCOUNT_JSON, 'utf8'));
+  let credentials;
+  
+  // Try to read from environment variable first (for production)
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT) {
+    try {
+      credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT);
+      console.log('Using service account from environment variable');
+    } catch (parseError) {
+      console.error('Error parsing service account from environment:', parseError.message);
+      throw new Error('Invalid service account JSON in environment variable');
+    }
+  } else {
+    // Fallback to file (for local development)
+    try {
+      credentials = JSON.parse(fs.readFileSync(process.env.GOOGLE_SERVICE_ACCOUNT_JSON, 'utf8'));
+      console.log('Using service account from file');
+    } catch (fileError) {
+      console.error('Error reading service account file:', fileError.message);
+      throw new Error('Service account file not found and no environment variable set');
+    }
+  }
+  
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: SCOPES,
   });
   return google.sheets({ version: 'v4', auth });
 }
+
+// Test endpoint to check environment variables
+app.get('/api/test', (req, res) => {
+  res.json({
+    sheetId: SHEET_ID ? 'Set' : 'Missing',
+    sheetRange: SHEET_RANGE,
+    serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? 'Set' : 'Missing',
+    serviceAccountContent: process.env.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT ? 'Set' : 'Missing',
+    port: PORT
+  });
+});
 
 app.get('/api/itinerary', auth, async (req, res) => {
   try {
