@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: __dirname + '/.env' });
 console.log('Loaded user:', process.env.BASIC_AUTH_USER);
 console.log('Loaded pass:', process.env.BASIC_AUTH_PASS);
 console.log('Loaded .env from:', process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
@@ -58,7 +58,8 @@ function getSheetsClient() {
   } else {
     // Fallback to file (for local development)
     try {
-      credentials = JSON.parse(fs.readFileSync(process.env.GOOGLE_SERVICE_ACCOUNT_JSON, 'utf8'));
+      const serviceAccountPath = path.join(__dirname, process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+      credentials = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
       console.log('Using service account from file');
     } catch (fileError) {
       console.error('Error reading service account file:', fileError.message);
