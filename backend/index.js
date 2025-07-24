@@ -105,6 +105,37 @@ app.get('/api/itinerary', auth, async (req, res) => {
   }
 });
 
+// AviationStack API endpoint
+app.get('/api/flight-status', auth, async (req, res) => {
+  try {
+    const { flightNumber, date } = req.query;
+    
+    if (!flightNumber || !date) {
+      return res.status(400).json({ error: 'Flight number and date are required' });
+    }
+    
+    const AVIATION_API_KEY = 'be74647d8855ad71a4dd3838df162266';
+    const url = `http://api.aviationstack.com/v1/flights?access_key=${AVIATION_API_KEY}&flight_iata=${flightNumber}&date=${date}`;
+    
+    console.log('Fetching flight status for:', flightNumber, 'on', date);
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    console.log('AviationStack response:', data);
+    
+    if (data.error) {
+      console.error('AviationStack API error:', data.error);
+      return res.status(500).json({ error: 'Flight status service unavailable' });
+    }
+    
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching flight status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Handle all other routes by serving the main HTML file (for SPA routing)
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
