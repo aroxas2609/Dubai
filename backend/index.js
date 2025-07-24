@@ -85,6 +85,8 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+
+
 app.get('/api/itinerary', auth, async (req, res) => {
   try {
     const sheets = getSheetsClient();
@@ -115,24 +117,55 @@ app.get('/api/flight-status', auth, async (req, res) => {
     }
     
     const AVIATION_API_KEY = 'be74647d8855ad71a4dd3838df162266';
-    const url = `http://api.aviationstack.com/v1/flights?access_key=${AVIATION_API_KEY}&flight_iata=${flightNumber}&date=${date}`;
+    const url = `https://api.aviationstack.com/v1/flights?access_key=${AVIATION_API_KEY}&flight_iata=${flightNumber}&date=${date}`;
     
     console.log('Fetching flight status for:', flightNumber, 'on', date);
+    console.log('API URL:', url);
+    console.log('API Key being used:', AVIATION_API_KEY);
     
     const response = await fetch(url);
-    const data = await response.json();
     
-    console.log('AviationStack response:', data);
+    // Check if response is OK
+    if (!response.ok) {
+      console.error('AviationStack API HTTP error:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('Error response body:', errorText);
+      return res.status(500).json({ 
+        error: 'Flight status service unavailable',
+        details: `HTTP ${response.status}: ${response.statusText}`
+      });
+    }
+    
+    // Check content type to ensure we're getting JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('Unexpected content type:', contentType);
+      const responseText = await response.text();
+      console.error('Non-JSON response:', responseText.substring(0, 200));
+      return res.status(500).json({ 
+        error: 'Flight status service returned invalid format',
+        details: 'Expected JSON but got: ' + contentType
+      });
+    }
+    
+    const data = await response.json();
+    console.log('AviationStack response:', JSON.stringify(data, null, 2));
     
     if (data.error) {
       console.error('AviationStack API error:', data.error);
-      return res.status(500).json({ error: 'Flight status service unavailable' });
+      return res.status(500).json({ 
+        error: 'Flight status service error',
+        details: data.error
+      });
     }
     
     res.json(data);
   } catch (err) {
     console.error('Error fetching flight status:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ 
+      error: 'Flight status service unavailable',
+      details: err.message 
+    });
   }
 });
 
