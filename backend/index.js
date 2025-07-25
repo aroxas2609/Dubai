@@ -1,6 +1,4 @@
 require('dotenv').config({ path: __dirname + '/.env' });
-console.log('Loaded user:', process.env.BASIC_AUTH_USER);
-console.log('Loaded pass:', process.env.BASIC_AUTH_PASS);
 console.log('Loaded .env from:', process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
 
 const express = require('express');
@@ -66,16 +64,65 @@ function invalidateCache(pattern) {
   }
 }
 
+// User roles and permissions
+const USERS = {
+  'Dubaiadm': {
+    password: 'Admin2025',
+    role: 'admin',
+    permissions: ['view', 'add', 'edit', 'delete']
+  },
+  'Dubai2025': {
+    password: 'Desert',
+    role: 'viewer',
+    permissions: ['view']
+  }
+};
+
 // Basic Auth Middleware
 const auth = (req, res, next) => {
   const user = basicAuth(req);
   console.log('Auth attempt:', user);
-  console.log('Expected:', process.env.BASIC_AUTH_USER, process.env.BASIC_AUTH_PASS);
-  if (!user || user.name !== process.env.BASIC_AUTH_USER || user.pass !== process.env.BASIC_AUTH_PASS) {
+  console.log('Available users:', Object.keys(USERS));
+  
+  if (!user) {
     res.set('WWW-Authenticate', 'Basic realm=\"Dubai Trip\"');
     return res.status(401).send('Authentication required.');
   }
+  
+  const userConfig = USERS[user.name];
+  console.log('User config for', user.name, ':', userConfig);
+  
+  if (!userConfig || userConfig.password !== user.pass) {
+    console.log('Authentication failed for', user.name);
+    console.log('Expected password:', userConfig?.password);
+    console.log('Provided password:', user.pass);
+    res.set('WWW-Authenticate', 'Basic realm=\"Dubai Trip\"');
+    return res.status(401).send('Invalid credentials.');
+  }
+  
+  // Add user info to request for later use
+  req.user = {
+    username: user.name,
+    role: userConfig.role,
+    permissions: userConfig.permissions
+  };
+  
+  console.log('Authenticated user:', req.user);
   next();
+};
+
+// Permission check middleware
+const requirePermission = (permission) => {
+  return (req, res, next) => {
+    if (!req.user || !req.user.permissions.includes(permission)) {
+      return res.status(403).json({ 
+        error: 'Insufficient permissions',
+        required: permission,
+        userRole: req.user?.role
+      });
+    }
+    next();
+  };
 };
 
 // Google Sheets API setup
@@ -265,6 +312,15 @@ async function getCachedDayData(dayNumber) {
   return dayData;
 }
 
+// User info endpoint
+app.get('/api/user-info', auth, (req, res) => {
+  res.json({
+    username: req.user.username,
+    role: req.user.role,
+    permissions: req.user.permissions
+  });
+});
+
 // Test endpoint to check environment variables
 app.get('/api/test', (req, res) => {
   res.json({
@@ -415,7 +471,7 @@ app.get('/api/itinerary', auth, async (req, res) => {
 });
 
 // Performance Optimization: Add new activity with minimal response
-app.post('/api/itinerary/add', auth, async (req, res) => {
+app.post('/api/itinerary/add', auth, requirePermission('add'), async (req, res) => {
   try {
     const { day, time, activity, notes, cost, link } = req.body;
     
@@ -578,7 +634,7 @@ app.post('/api/itinerary/add', auth, async (req, res) => {
 });
 
 // Performance Optimization: Update existing activity with minimal response
-app.put('/api/itinerary/update', auth, async (req, res) => {
+app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, res) => {
   try {
     const { day, originalTime, originalActivity, time, activity, notes, cost, link } = req.body;
     
@@ -690,7 +746,7 @@ app.put('/api/itinerary/update', auth, async (req, res) => {
 });
 
 // Performance Optimization: Delete activity with minimal response
-app.delete('/api/itinerary/delete', auth, async (req, res) => {
+app.delete('/api/itinerary/delete', auth, requirePermission('delete'), async (req, res) => {
   console.log('\n🔥🔥🔥 DELETE ENDPOINT CALLED 🔥🔥🔥');
   console.log('Request body:', req.body);
   try {
