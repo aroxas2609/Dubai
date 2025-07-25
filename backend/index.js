@@ -312,15 +312,6 @@ async function getCachedDayData(dayNumber) {
   return dayData;
 }
 
-// User info endpoint
-app.get('/api/user-info', auth, (req, res) => {
-  res.json({
-    username: req.user.username,
-    role: req.user.role,
-    permissions: req.user.permissions
-  });
-});
-
 // Test endpoint to check environment variables
 app.get('/api/test', (req, res) => {
   res.json({
@@ -328,6 +319,17 @@ app.get('/api/test', (req, res) => {
     serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? 'Set' : 'Missing',
     serviceAccountContent: process.env.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT ? 'Set' : 'Missing',
     port: PORT
+  });
+});
+
+// User info endpoint - moved here to ensure it's not caught by catch-all
+app.get('/api/user-info', auth, (req, res) => {
+  console.log('=== USER-INFO ENDPOINT CALLED ===');
+  console.log('User:', req.user);
+  res.json({
+    username: req.user.username,
+    role: req.user.role,
+    permissions: req.user.permissions
   });
 });
 
@@ -686,8 +688,8 @@ app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, re
         if (rowTime === originalTime.trim() && rowActivity === originalActivity.trim()) {
           targetRowIndex = i;
           console.log(`Found matching activity at row ${i}`);
-          break;
-        }
+                break;
+              }
       }
     }
     
@@ -857,8 +859,8 @@ app.delete('/api/itinerary/delete', auth, requirePermission('delete'), async (re
       deletedActivity: { time, activity }
     });
     
-      } catch (error) {
-        console.error('Error deleting activity:', error);
+  } catch (error) {
+    console.error('Error deleting activity:', error);
         
         // Check if it's a rate limit error
         if (error.message && error.message.includes('Quota exceeded') || error.code === 429) {
@@ -867,15 +869,15 @@ app.delete('/api/itinerary/delete', auth, requirePermission('delete'), async (re
                 details: 'Google Sheets API rate limit reached'
             });
         }
-        
-        // Fallback: try to clear the row content instead of deleting
-        try {
+    
+    // Fallback: try to clear the row content instead of deleting
+    try {
             const { day, time, activity } = req.body;
-            const dayNumber = parseInt(day.replace(/\D/g, ''));
-            const sheetName = getSheetName(dayNumber);
-            const sheets = getSheetsClient();
-            
-            console.log(`=== FALLBACK CLEAR DEBUG ===`);
+      const dayNumber = parseInt(day.replace(/\D/g, ''));
+      const sheetName = getSheetName(dayNumber);
+      const sheets = getSheetsClient();
+      
+      console.log(`=== FALLBACK CLEAR DEBUG ===`);
             console.log(`Fallback: Clearing row content in ${sheetName} with time "${time}" and activity "${activity}"`);
             
             // Get the current data to find the correct row for clearing (use cache if available)
@@ -884,7 +886,7 @@ app.delete('/api/itinerary/delete', auth, requirePermission('delete'), async (re
             let headerOffset = 0;
             
             // Check if first row is a header row
-            if (values.length > 0 && values[0] && values[0][0] === 'Date') {
+      if (values.length > 0 && values[0] && values[0][0] === 'Date') {
                 headerOffset = 1;
             }
             
@@ -909,40 +911,40 @@ app.delete('/api/itinerary/delete', auth, requirePermission('delete'), async (re
                 });
             }
             
-            console.log(`Clear range: ${sheetName}!A${targetRowIndex + 1}:H${targetRowIndex + 1}`);
-            
+      console.log(`Clear range: ${sheetName}!A${targetRowIndex + 1}:H${targetRowIndex + 1}`);
+      
             const clearResponse = await rateLimitedSheetsCall(() =>
                 sheets.spreadsheets.values.clear({
-                    spreadsheetId: SHEET_ID,
-                    range: `${sheetName}!A${targetRowIndex + 1}:H${targetRowIndex + 1}`,
+        spreadsheetId: SHEET_ID,
+        range: `${sheetName}!A${targetRowIndex + 1}:H${targetRowIndex + 1}`,
                 })
             );
-            
-            console.log(`Successfully cleared row content in ${sheetName}:`, clearResponse.data);
-            console.log('🔥🔥🔥 FALLBACK CLEAR OPERATION COMPLETED 🔥🔥🔥');
-            
+      
+      console.log(`Successfully cleared row content in ${sheetName}:`, clearResponse.data);
+      console.log('🔥🔥🔥 FALLBACK CLEAR OPERATION COMPLETED 🔥🔥🔥');
+      
             // Performance Optimization: Invalidate cache for this day only
             invalidateCache(`day:${dayNumber}`);
             
             // Performance Optimization: Return minimal response without refetching entire itinerary
-            res.json({
-                success: true,
+      res.json({
+        success: true,
                 message: 'Activity cleared successfully (row deletion failed)',
                 day: dayNumber,
                 clearedActivity: { time, activity }
-            });
-        } catch (fallbackError) {
-            console.error('Fallback clear also failed:', fallbackError);
+      });
+    } catch (fallbackError) {
+      console.error('Fallback clear also failed:', fallbackError);
             if (fallbackError.message && fallbackError.message.includes('Quota exceeded') || fallbackError.code === 429) {
                 res.status(429).json({ 
                     error: 'Rate limit exceeded. Please wait a moment and try again.',
                     details: 'Google Sheets API rate limit reached'
                 });
             } else {
-                res.status(500).json({ error: 'Failed to delete activity' });
+      res.status(500).json({ error: 'Failed to delete activity' });
             }
-        }
     }
+  }
 });
 
 // AviationStack API endpoint
@@ -1025,4 +1027,4 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
-});
+}); 
