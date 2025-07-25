@@ -26,6 +26,46 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
+// Performance Optimization: Caching System
+const cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const HEADERS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes (headers rarely change)
+
+function getCacheKey(type, identifier = '') {
+  return `${type}:${identifier}`;
+}
+
+function isCacheValid(key) {
+  const cached = cache.get(key);
+  if (!cached) return false;
+  
+  const ttl = key.startsWith('headers') ? HEADERS_CACHE_TTL : CACHE_TTL;
+  return Date.now() - cached.timestamp < ttl;
+}
+
+function setCache(key, data) {
+  cache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+}
+
+function getCache(key) {
+  if (!isCacheValid(key)) {
+    cache.delete(key);
+    return null;
+  }
+  return cache.get(key).data;
+}
+
+function invalidateCache(pattern) {
+  for (const key of cache.keys()) {
+    if (key.includes(pattern)) {
+      cache.delete(key);
+    }
+  }
+}
+
 // Basic Auth Middleware
 const auth = (req, res, next) => {
   const user = basicAuth(req);
@@ -136,22 +176,22 @@ async function getSheetId(sheetName) {
 // Add rate limiting helper function
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Rate limiting for Google Sheets API calls
-const rateLimitedSheetsCall = async (callFunction, delayMs = 300) => {
+// Performance Optimization: Reduced rate limiting delays
+const rateLimitedSheetsCall = async (callFunction, delayMs = 100) => {
     try {
         const result = await callFunction();
-        await delay(delayMs); // Wait 300ms between calls (increased from 200ms)
+        await delay(delayMs); // Reduced from 300ms to 100ms
         return result;
     } catch (error) {
         if (error.message.includes('Quota exceeded') || error.code === 429) {
-            console.log('Rate limit hit, waiting 3 seconds before retry...');
-            await delay(3000); // Increased from 2000ms
+            console.log('Rate limit hit, waiting 2 seconds before retry...');
+            await delay(2000); // Reduced from 3000ms to 2000ms
             try {
                 return await callFunction(); // Retry once
             } catch (retryError) {
                 if (retryError.message.includes('Quota exceeded') || retryError.code === 429) {
-                    console.log('Rate limit hit again, waiting 8 seconds...');
-                    await delay(8000); // Increased from 5000ms
+                    console.log('Rate limit hit again, waiting 5 seconds...');
+                    await delay(5000); // Reduced from 8000ms to 5000ms
                     return await callFunction(); // Final retry
                 }
                 throw retryError;
@@ -160,6 +200,70 @@ const rateLimitedSheetsCall = async (callFunction, delayMs = 300) => {
         throw error;
     }
 };
+
+// Performance Optimization: Cached headers fetching
+async function getCachedHeaders() {
+  const cacheKey = getCacheKey('headers');
+  let headersData = getCache(cacheKey);
+  
+  if (!headersData) {
+    console.log('Headers not in cache, fetching from sheet...');
+    const sheets = getSheetsClient();
+    try {
+      const headersResponse = await rateLimitedSheetsCall(() => 
+        sheets.spreadsheets.values.get({
+          spreadsheetId: SHEET_ID,
+          range: 'Headers',
+        })
+      );
+      
+      headersData = headersResponse.data.values || [];
+      setCache(cacheKey, headersData);
+      console.log(`Fetched and cached ${headersData.length} header rows`);
+    } catch (error) {
+      console.log(`Headers sheet not found or empty, using default headers:`, error.message);
+      headersData = [];
+      setCache(cacheKey, headersData);
+    }
+  } else {
+    console.log('Using cached headers data');
+  }
+  
+  return headersData;
+}
+
+// Performance Optimization: Cached day data fetching
+async function getCachedDayData(dayNumber) {
+  const cacheKey = getCacheKey('day', dayNumber);
+  let dayData = getCache(cacheKey);
+  
+  if (!dayData) {
+    console.log(`Day ${dayNumber} not in cache, fetching from sheet...`);
+    const sheets = getSheetsClient();
+    const sheetName = getSheetName(dayNumber);
+    
+    try {
+      const response = await rateLimitedSheetsCall(() =>
+        sheets.spreadsheets.values.get({
+          spreadsheetId: SHEET_ID,
+          range: sheetName,
+        })
+      );
+      
+      dayData = response.data.values || [];
+      setCache(cacheKey, dayData);
+      console.log(`Fetched and cached ${dayData.length} rows from ${sheetName}`);
+    } catch (error) {
+      console.error(`Error fetching data from ${sheetName}:`, error.message);
+      dayData = [];
+      setCache(cacheKey, dayData);
+    }
+  } else {
+    console.log(`Using cached data for Day ${dayNumber}`);
+  }
+  
+  return dayData;
+}
 
 // Test endpoint to check environment variables
 app.get('/api/test', (req, res) => {
@@ -192,29 +296,13 @@ app.get('/api/sheets', auth, async (req, res) => {
   }
 });
 
-// Get all itinerary data from Headers sheet and all day sheets
+// Performance Optimization: Get all itinerary data with caching
 app.get('/api/itinerary', auth, async (req, res) => {
   try {
-    const sheets = getSheetsClient();
     const allData = [];
     
-    // First, fetch the Headers sheet to get static header data
-    console.log(`Fetching headers from sheet: ${SHEET_ID} range: Headers`);
-    let headersData = [];
-    try {
-      const headersResponse = await rateLimitedSheetsCall(() => 
-        sheets.spreadsheets.values.get({
-          spreadsheetId: SHEET_ID,
-          range: 'Headers',
-        })
-      );
-      
-      headersData = headersResponse.data.values || [];
-      console.log(`Fetched ${headersData.length} header rows`);
-    } catch (error) {
-      console.log(`Headers sheet not found or empty, using default headers:`, error.message);
-      headersData = [];
-    }
+    // Get cached headers
+    const headersData = await getCachedHeaders();
     
     // Create a map of day numbers to their header info
     const dayHeaders = {};
@@ -246,25 +334,19 @@ app.get('/api/itinerary', auth, async (req, res) => {
     
     console.log(`Processed ${Object.keys(dayHeaders).length} day headers`);
     
-    // Fetch data from all 10 day sheets in parallel for faster loading
-    console.log('Fetching data from all day sheets in parallel...');
+    // Performance Optimization: Fetch data from all 10 day sheets in parallel with caching
+    console.log('Fetching data from all day sheets in parallel with caching...');
     const dayPromises = [];
     
     for (let day = 1; day <= 10; day++) {
-      const sheetName = getSheetName(day);
-      const promise = rateLimitedSheetsCall(() => 
-        sheets.spreadsheets.values.get({
-          spreadsheetId: SHEET_ID,
-          range: sheetName,
-        })
-      ).then(response => ({
+      const promise = getCachedDayData(day).then(values => ({
         day,
-        sheetName,
-        values: response.data.values || [],
+        sheetName: getSheetName(day),
+        values,
         success: true
       })).catch(error => ({
         day,
-        sheetName,
+        sheetName: getSheetName(day),
         values: [],
         success: false,
         error: error.message
@@ -279,7 +361,7 @@ app.get('/api/itinerary', auth, async (req, res) => {
     // Process the results in order
     dayResults.forEach(result => {
       if (result.success) {
-        console.log(`Fetched ${result.values.length} rows from ${result.sheetName}`);
+        console.log(`Processed ${result.values.length} rows from ${result.sheetName}`);
         
         if (result.values.length > 0) {
           // Get the header info for this day
@@ -319,7 +401,7 @@ app.get('/api/itinerary', auth, async (req, res) => {
           });
         }
       } else {
-        console.error(`Error fetching data from ${result.sheetName}:`, result.error);
+        console.error(`Error processing data from ${result.sheetName}:`, result.error);
       }
     });
     
@@ -332,7 +414,7 @@ app.get('/api/itinerary', auth, async (req, res) => {
   }
 });
 
-// Add new activity to a specific day
+// Performance Optimization: Add new activity with minimal response
 app.post('/api/itinerary/add', auth, async (req, res) => {
   try {
     const { day, time, activity, notes, cost, link } = req.body;
@@ -351,13 +433,8 @@ app.post('/api/itinerary/add', auth, async (req, res) => {
     
     console.log(`Adding activity to ${sheetName}:`, { time, activity, notes, cost, link });
     
-    // Get current data from the day sheet
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: sheetName,
-    });
-    
-    const values = response.data.values || [];
+    // Get current data from the day sheet (use cache if available)
+    const values = await getCachedDayData(dayNumber);
     console.log(`Current data in ${sheetName}:`, values);
     
     // Prepare the new row data for the new structure (Time, Activity, Notes, Cost, Link)
@@ -482,10 +559,16 @@ app.post('/api/itinerary/add', auth, async (req, res) => {
       console.log(`Appended activity to end of sheet:`, appendResponse.data);
     }
     
+    // Performance Optimization: Invalidate cache for this day only
+    invalidateCache(`day:${dayNumber}`);
+    
+    // Performance Optimization: Return minimal response without refetching entire itinerary
     res.json({
       success: true,
       message: 'Activity added successfully',
-      updatedRange: `${sheetName}!A${insertRowIndex + 1}:H${insertRowIndex + 1}`
+      updatedRange: `${sheetName}!A${insertRowIndex + 1}:H${insertRowIndex + 1}`,
+      day: dayNumber,
+      newActivity: { time, activity, notes, cost, link }
     });
     
   } catch (error) {
@@ -494,7 +577,7 @@ app.post('/api/itinerary/add', auth, async (req, res) => {
   }
 });
 
-// Update existing activity by matching content
+// Performance Optimization: Update existing activity with minimal response
 app.put('/api/itinerary/update', auth, async (req, res) => {
   try {
     const { day, originalTime, originalActivity, time, activity, notes, cost, link } = req.body;
@@ -517,15 +600,12 @@ app.put('/api/itinerary/update', auth, async (req, res) => {
     const sheetName = getSheetName(dayNumber);
     const sheets = getSheetsClient();
     
-    // Get current data from the day sheet
-    const response = await rateLimitedSheetsCall(() =>
-      sheets.spreadsheets.values.get({
-        spreadsheetId: SHEET_ID,
-        range: sheetName,
-      })
-    );
+    // Performance Optimization: Invalidate cache BEFORE the update to prevent stale data
+    console.log(`Invalidating cache for Day ${dayNumber} before update`);
+    invalidateCache(`day:${dayNumber}`);
     
-    const values = response.data.values || [];
+    // Get current data from the day sheet (will fetch fresh data since cache was invalidated)
+    const values = await getCachedDayData(dayNumber);
     console.log(`Current data in ${sheetName}:`, values);
     
     // Find the row to update by matching original time and activity
@@ -581,10 +661,18 @@ app.put('/api/itinerary/update', auth, async (req, res) => {
       
       console.log(`Successfully updated activity in ${sheetName}:`, updateResponse.data);
       
+      // Performance Optimization: Invalidate cache again after successful update
+      console.log(`Invalidating cache for Day ${dayNumber} after successful update`);
+      invalidateCache(`day:${dayNumber}`);
+      
+      // Performance Optimization: Return minimal response without refetching entire itinerary
       res.json({
         success: true,
         message: 'Activity updated successfully',
-        updatedRange: updateResponse.data.updatedRange
+        updatedRange: updateResponse.data.updatedRange,
+        day: dayNumber,
+        updatedActivity: { time, activity, notes, cost, link },
+        originalActivity: { time: originalTime, activity: originalActivity }
       });
     } catch (updateError) {
       console.error(`Error updating activity in ${sheetName}:`, updateError);
@@ -601,7 +689,7 @@ app.put('/api/itinerary/update', auth, async (req, res) => {
   }
 });
 
-// Delete activity by matching content
+// Performance Optimization: Delete activity with minimal response
 app.delete('/api/itinerary/delete', auth, async (req, res) => {
   console.log('\n🔥🔥🔥 DELETE ENDPOINT CALLED 🔥🔥🔥');
   console.log('Request body:', req.body);
@@ -641,13 +729,8 @@ app.delete('/api/itinerary/delete', auth, async (req, res) => {
     const sheetId = sheet.properties.sheetId;
     console.log(`Found sheet ID for ${sheetName}:`, sheetId);
     
-    // Get the current data from the sheet to find the correct row
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: sheetName,
-    });
-    
-    const values = response.data.values || [];
+    // Get the current data from the sheet (use cache if available)
+    const values = await getCachedDayData(dayNumber);
     console.log(`Current data in ${sheetName}:`, values);
     
     // Find the row to delete by matching time and activity
@@ -707,9 +790,15 @@ app.delete('/api/itinerary/delete', auth, async (req, res) => {
     console.log(`Successfully deleted activity from ${sheetName}:`, deleteResponse.data);
     console.log('🔥🔥🔥 DELETE OPERATION COMPLETED SUCCESSFULLY 🔥🔥🔥');
     
+    // Performance Optimization: Invalidate cache for this day only
+    invalidateCache(`day:${dayNumber}`);
+    
+    // Performance Optimization: Return minimal response without refetching entire itinerary
     res.json({
       success: true,
-      message: 'Activity deleted successfully'
+      message: 'Activity deleted successfully',
+      day: dayNumber,
+      deletedActivity: { time, activity }
     });
     
       } catch (error) {
@@ -733,15 +822,8 @@ app.delete('/api/itinerary/delete', auth, async (req, res) => {
             console.log(`=== FALLBACK CLEAR DEBUG ===`);
             console.log(`Fallback: Clearing row content in ${sheetName} with time "${time}" and activity "${activity}"`);
             
-            // Get the current data to find the correct row for clearing
-            const response = await rateLimitedSheetsCall(() =>
-                sheets.spreadsheets.values.get({
-                    spreadsheetId: SHEET_ID,
-                    range: sheetName,
-                })
-            );
-            
-            const values = response.data.values || [];
+            // Get the current data to find the correct row for clearing (use cache if available)
+            const values = await getCachedDayData(dayNumber);
             let targetRowIndex = -1;
             let headerOffset = 0;
             
@@ -783,9 +865,15 @@ app.delete('/api/itinerary/delete', auth, async (req, res) => {
             console.log(`Successfully cleared row content in ${sheetName}:`, clearResponse.data);
             console.log('🔥🔥🔥 FALLBACK CLEAR OPERATION COMPLETED 🔥🔥🔥');
             
+            // Performance Optimization: Invalidate cache for this day only
+            invalidateCache(`day:${dayNumber}`);
+            
+            // Performance Optimization: Return minimal response without refetching entire itinerary
             res.json({
                 success: true,
-                message: 'Activity cleared successfully (row deletion failed)'
+                message: 'Activity cleared successfully (row deletion failed)',
+                day: dayNumber,
+                clearedActivity: { time, activity }
             });
         } catch (fallbackError) {
             console.error('Fallback clear also failed:', fallbackError);
@@ -881,4 +969,4 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
-}); 
+});
