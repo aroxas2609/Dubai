@@ -1117,12 +1117,17 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
     
     // Get a shared link (public)
     const sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
-      path: uploadResponse.result.path_display
+      path: uploadResponse.result.path_display,
+      settings: {
+        requested_visibility: 'public',
+        audience: 'public',
+        access: 'viewer'
+      }
     });
     
-    // Convert to direct link
+    // Convert to direct link for public access
     const sharedLink = sharedLinkResponse.result.url;
-    const directLink = sharedLink.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '');
+    const directLink = sharedLink.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '&raw=1');
     
     console.log('Image uploaded successfully to Dropbox:', fileName);
     
@@ -1165,6 +1170,87 @@ app.delete('/api/delete-image/:imageId', auth, requirePermission('edit'), async 
     console.error('Error deleting image from Dropbox:', error);
     res.status(500).json({ 
       error: 'Failed to delete image',
+      details: error.message 
+    });
+  }
+});
+
+// Fix existing Dropbox links endpoint
+app.post('/api/fix-dropbox-links', auth, requirePermission('edit'), async (req, res) => {
+  try {
+    console.log('Fixing existing Dropbox links...');
+    
+    const dbx = getDropboxClient();
+    
+    // Get all activities with images
+    const itinerary = await getCachedHeaders();
+    const allActivities = [];
+    
+    for (let dayNumber = 1; dayNumber <= 10; dayNumber++) {
+      const dayData = await getCachedDayData(dayNumber);
+      if (dayData && dayData.length > 0) {
+        dayData.forEach((row, index) => {
+          if (row.length >= 7 && row[6] && row[6].includes('dropboxusercontent.com')) {
+            allActivities.push({
+              day: dayNumber,
+              rowIndex: index,
+              imageUrl: row[6]
+            });
+          }
+        });
+      }
+    }
+    
+    console.log(`Found ${allActivities.length} activities with Dropbox images`);
+    
+    // For each image, try to create a new public link
+    const updatedActivities = [];
+    
+    for (const activity of allActivities) {
+      try {
+        // Extract the file path from the existing URL
+        const urlParts = activity.imageUrl.split('/');
+        const fileName = urlParts[urlParts.length - 1].split('?')[0];
+        const filePath = `/dubai-trip-images/${fileName}`;
+        
+        // Create a new public shared link
+        const sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
+          path: filePath,
+          settings: {
+            requested_visibility: 'public',
+            audience: 'public',
+            access: 'viewer'
+          }
+        });
+        
+        // Convert to direct link
+        const sharedLink = sharedLinkResponse.result.url;
+        const directLink = sharedLink.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '&raw=1');
+        
+        updatedActivities.push({
+          day: activity.day,
+          rowIndex: activity.rowIndex,
+          oldUrl: activity.imageUrl,
+          newUrl: directLink
+        });
+        
+        console.log(`Updated link for day ${activity.day}, row ${activity.rowIndex}`);
+        
+      } catch (error) {
+        console.error(`Error updating link for activity:`, error);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Processed ${allActivities.length} activities`,
+      updatedActivities: updatedActivities
+    });
+
+  } catch (error) {
+    console.error('Error fixing Dropbox links:', error);
+    res.status(500).json({ 
+      error: 'Failed to fix Dropbox links',
       details: error.message 
     });
   }
