@@ -443,7 +443,18 @@ app.get('/api/itinerary', auth, async (req, res) => {
           // Then add each activity row with empty header fields
           result.values.forEach(row => {
             if (row && row.length > 0) {
-              // Create activity row with empty header fields: [Date, Day, Title, Time, Activity, Notes, Cost, Link]
+              // Check visibility for viewer users
+              const isVisible = row[5] !== 'false' && row[5] !== false; // Column 5 (index 5) is visibility
+              const user = basicAuth(req);
+              const userConfig = USERS[user.name];
+              const isViewer = userConfig && userConfig.permissions && !userConfig.permissions.includes('edit');
+              
+              // Skip hidden activities for viewer users
+              if (isViewer && !isVisible) {
+                return;
+              }
+              
+              // Create activity row with empty header fields: [Date, Day, Title, Time, Activity, Notes, Cost, Link, Visibility]
               const activityRow = [
                 '', // Empty Date (will be filled by the day header)
                 '', // Empty Day (will be filled by the day header)
@@ -452,7 +463,8 @@ app.get('/api/itinerary', auth, async (req, res) => {
                 row[1] || '', // Activity
                 row[2] || '', // Notes
                 row[3] || '', // Cost
-                row[4] || ''  // Link
+                row[4] || '', // Link
+                row[5] || 'true' // Visibility (default to true if not set)
               ];
               allData.push(activityRow);
             }
@@ -495,13 +507,14 @@ app.post('/api/itinerary/add', auth, requirePermission('add'), async (req, res) 
     const values = await getCachedDayData(dayNumber);
     console.log(`Current data in ${sheetName}:`, values);
     
-    // Prepare the new row data for the new structure (Time, Activity, Notes, Cost, Link)
+    // Prepare the new row data for the new structure (Time, Activity, Notes, Cost, Link, Visibility)
     const newRow = [
       time || '',
       activity,
       notes || '',
       cost || '',
-      link || ''
+      link || '',
+      'true' // Default to visible for new activities
     ];
     
     // Find the correct position to insert based on time
@@ -702,8 +715,9 @@ app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, re
     
     console.log(`Updating activity in ${sheetName} at row ${targetRowIndex + 1}:`, { time, activity, notes, cost, link });
     
-    // Update the specific row in the target sheet
+    // Update the specific row in the target sheet, preserving visibility
     const updatedRow = [time, activity, notes || '', cost || '', link || ''];
+    // Note: Visibility field (column 6) is not updated here to preserve existing visibility setting
     
     try {
       const updateResponse = await rateLimitedSheetsCall(() =>
@@ -946,6 +960,98 @@ app.delete('/api/itinerary/delete', auth, requirePermission('delete'), async (re
     }
   }
 });
+
+// Activity visibility toggle endpoint
+app.put('/api/itinerary/visibility', auth, requirePermission('edit'), async (req, res) => {
+  console.log('=== VISIBILITY ENDPOINT CALLED ===');
+  console.log('Request body:', req.body);
+  try {
+    const { day, time, activity, visible } = req.body;
+    
+    if (!day || !time || !activity || typeof visible !== 'boolean') {
+      return res.status(400).json({ error: 'Day, time, activity, and visible status are required' });
+    }
+    
+    const dayNumber = parseInt(day.replace(/\D/g, ''));
+    if (dayNumber < 1 || dayNumber > 10) {
+      return res.status(400).json({ error: 'Day must be between 1 and 10' });
+    }
+    
+    const sheetName = getSheetName(dayNumber);
+    const sheets = getSheetsClient();
+    
+    console.log(`Toggling visibility for activity in ${sheetName}:`, { time, activity, visible });
+    
+    // Get current data from the day sheet
+    const values = await getCachedDayData(dayNumber);
+    console.log(`Current data in ${sheetName}:`, values);
+    console.log(`Looking for time: "${time}" and activity: "${activity}"`);
+    
+    // Find the row to update by matching time and activity
+    let rowIndex = -1;
+    for (let i = 0; i < values.length; i++) {
+      const row = values[i];
+      console.log(`Row ${i}:`, row);
+      if (row && row.length > 1) {
+        console.log(`  Comparing: row[0]="${row[0]}" with time="${time}"`);
+        console.log(`  Comparing: row[1]="${row[1]}" with activity="${activity}"`);
+        if (row[0] === time && row[1] === activity) {
+          rowIndex = i + 1; // Sheets API uses 1-based indexing
+          console.log(`  MATCH FOUND at row ${rowIndex}`);
+          break;
+        }
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return res.status(404).json({ error: 'Activity not found' });
+    }
+    
+    // Update the visibility column (column 6, index 5)
+    // If the row doesn't have enough columns, we need to extend it
+    const updateRange = `${sheetName}!F${rowIndex}`;
+    const updateValue = visible ? 'true' : 'false';
+    
+    console.log(`Updating visibility at ${updateRange} to: ${updateValue}`);
+    
+    const updateResponse = await rateLimitedSheetsCall(() => 
+      sheets.spreadsheets.values.update({
+        spreadsheetId: SHEET_ID,
+        range: updateRange,
+        valueInputOption: 'RAW',
+        resource: {
+          values: [[updateValue]]
+        }
+      })
+    );
+    
+    console.log(`Successfully updated visibility in ${sheetName}:`, updateResponse.data);
+    
+    // Invalidate cache for this day
+    invalidateCache(`day:${dayNumber}`);
+    
+    res.json({
+      success: true,
+      message: `Activity ${visible ? 'made visible' : 'hidden'} successfully`,
+      day: dayNumber,
+      updatedActivity: { time, activity, visible }
+    });
+    
+  } catch (error) {
+    console.error('Error updating activity visibility:', error);
+    
+    if (error.message && error.message.includes('Quota exceeded') || error.code === 429) {
+      res.status(429).json({ 
+        error: 'Rate limit exceeded. Please wait a moment and try again.',
+        details: 'Google Sheets API rate limit reached'
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to update activity visibility' });
+    }
+  }
+});
+
+
 
 // AviationStack API endpoint
 app.get('/api/flight-status', auth, async (req, res) => {
