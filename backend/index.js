@@ -1115,19 +1115,20 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
       mode: 'add'
     });
     
-    // Get a shared link (public)
+    // Get a shared link (public) with robust settings for mobile compatibility
     const sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
       path: uploadResponse.result.path_display,
       settings: {
         requested_visibility: 'public',
         audience: 'public',
-        access: 'viewer'
+        access: 'viewer',
+        allow_download: true
       }
     });
     
-    // Convert to direct link for public access
+    // Convert to direct link for public access - use more reliable format
     const sharedLink = sharedLinkResponse.result.url;
-    const directLink = sharedLink.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '&raw=1');
+    const directLink = sharedLink.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
     
     console.log('Image uploaded successfully to Dropbox:', fileName);
     
@@ -1213,19 +1214,20 @@ app.post('/api/fix-dropbox-links', auth, requirePermission('edit'), async (req, 
         const fileName = urlParts[urlParts.length - 1].split('?')[0];
         const filePath = `/dubai-trip-images/${fileName}`;
         
-        // Create a new public shared link
+        // Create a new public shared link with more robust settings
         const sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
           path: filePath,
           settings: {
             requested_visibility: 'public',
             audience: 'public',
-            access: 'viewer'
+            access: 'viewer',
+            allow_download: true
           }
         });
         
-        // Convert to direct link
+        // Convert to direct link - use more reliable format for mobile compatibility
         const sharedLink = sharedLinkResponse.result.url;
-        const directLink = sharedLink.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '&raw=1');
+        const directLink = sharedLink.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
         
         updatedActivities.push({
           day: activity.day,
@@ -1235,6 +1237,9 @@ app.post('/api/fix-dropbox-links', auth, requirePermission('edit'), async (req, 
         });
         
         console.log(`Updated link for day ${activity.day}, row ${activity.rowIndex}`);
+        
+        // Add a small delay to avoid rate limiting
+        await delay(100);
         
       } catch (error) {
         console.error(`Error updating link for activity:`, error);
