@@ -7,6 +7,8 @@ const cors = require('cors');
 const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 const app = express();
 const PORT = process.env.PORT || 3002;
 
@@ -160,6 +162,35 @@ function getSheetsClient() {
     scopes: SCOPES,
   });
   return google.sheets({ version: 'v4', auth });
+}
+
+function getDriveClient() {
+  let credentials;
+  
+  // Try to read from environment variable first (for production)
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT) {
+    try {
+      credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT);
+    } catch (parseError) {
+      console.error('Error parsing service account from environment:', parseError.message);
+      throw new Error('Invalid service account JSON in environment variable');
+    }
+  } else {
+    // Fallback to file (for local development)
+    try {
+      const serviceAccountPath = path.join(__dirname, process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+      credentials = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+    } catch (fileError) {
+      console.error('Error reading service account file:', fileError.message);
+      throw new Error('Service account file not found and no environment variable set');
+    }
+  }
+  
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+  });
+  return google.drive({ version: 'v3', auth });
 }
 
 // Helper function to get sheet name from day number
@@ -454,7 +485,7 @@ app.get('/api/itinerary', auth, async (req, res) => {
                 return;
               }
               
-              // Create activity row with empty header fields: [Date, Day, Title, Time, Activity, Notes, Cost, Link, Visibility]
+              // Create activity row with empty header fields: [Date, Day, Title, Time, Activity, Notes, Cost, Link, Visibility, Image]
               const activityRow = [
                 '', // Empty Date (will be filled by the day header)
                 '', // Empty Day (will be filled by the day header)
@@ -464,7 +495,8 @@ app.get('/api/itinerary', auth, async (req, res) => {
                 row[2] || '', // Notes
                 row[3] || '', // Cost
                 row[4] || '', // Link
-                row[5] || 'true' // Visibility (default to true if not set)
+                row[5] || 'true', // Visibility (default to true if not set)
+                row[6] || '' // Image URL
               ];
               allData.push(activityRow);
             }
@@ -487,7 +519,7 @@ app.get('/api/itinerary', auth, async (req, res) => {
 // Performance Optimization: Add new activity with minimal response
 app.post('/api/itinerary/add', auth, requirePermission('add'), async (req, res) => {
   try {
-    const { day, time, activity, notes, cost, link } = req.body;
+    const { day, time, activity, notes, cost, link, image } = req.body;
     
     if (!day || !time || !activity) {
       return res.status(400).json({ error: 'Day, time, and activity are required' });
@@ -507,14 +539,15 @@ app.post('/api/itinerary/add', auth, requirePermission('add'), async (req, res) 
     const values = await getCachedDayData(dayNumber);
     console.log(`Current data in ${sheetName}:`, values);
     
-    // Prepare the new row data for the new structure (Time, Activity, Notes, Cost, Link, Visibility)
+    // Prepare the new row data for the new structure (Time, Activity, Notes, Cost, Link, Visibility, Image)
     const newRow = [
       time || '',
       activity,
       notes || '',
       cost || '',
       link || '',
-      'true' // Default to visible for new activities
+      'true', // Default to visible for new activities
+      image || '' // Use provided image URL or empty string
     ];
     
     // Find the correct position to insert based on time
@@ -715,9 +748,9 @@ app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, re
     
     console.log(`Updating activity in ${sheetName} at row ${targetRowIndex + 1}:`, { time, activity, notes, cost, link });
     
-    // Update the specific row in the target sheet, preserving visibility
+    // Update the specific row in the target sheet, preserving visibility and image
     const updatedRow = [time, activity, notes || '', cost || '', link || ''];
-    // Note: Visibility field (column 6) is not updated here to preserve existing visibility setting
+    // Note: Visibility field (column 6) and Image field (column 7) are not updated here to preserve existing settings
     
     try {
       const updateResponse = await rateLimitedSheetsCall(() =>
@@ -1051,7 +1084,144 @@ app.put('/api/itinerary/visibility', auth, requirePermission('edit'), async (req
   }
 });
 
+// Test endpoint to check if upload-image is accessible
+app.get('/api/test-upload', (req, res) => {
+  res.json({ message: 'Upload endpoint is accessible', timestamp: new Date().toISOString() });
+});
 
+// Image upload endpoint for Google Drive
+app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    const { originalname, mimetype, buffer } = req.file;
+    
+    // Validate file type
+    if (!mimetype.startsWith('image/')) {
+      return res.status(400).json({ error: 'File must be an image' });
+    }
+
+    // Validate file size (max 5MB)
+    if (buffer.length > 5 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Image file too large. Maximum size is 5MB.' });
+    }
+
+    const drive = getDriveClient();
+    
+    // Create a folder for Dubai trip images if it doesn't exist
+    const folderName = 'Dubai Trip Images';
+    let folderId;
+    
+    try {
+      // Check if folder exists
+      const folderResponse = await drive.files.list({
+        q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+        spaces: 'drive',
+        fields: 'files(id, name)'
+      });
+
+      if (folderResponse.data.files.length > 0) {
+        folderId = folderResponse.data.files[0].id;
+      } else {
+        // Create folder
+        const folderMetadata = {
+          name: folderName,
+          mimeType: 'application/vnd.google-apps.folder'
+        };
+
+        const folder = await drive.files.create({
+          resource: folderMetadata,
+          fields: 'id'
+        });
+
+        folderId = folder.data.id;
+        console.log('Created folder:', folderName, 'with ID:', folderId);
+      }
+    } catch (folderError) {
+      console.error('Error creating/finding folder:', folderError);
+      return res.status(500).json({ error: 'Failed to create image folder' });
+    }
+
+    // Upload image to Google Drive
+    const fileMetadata = {
+      name: `${Date.now()}_${originalname}`,
+      parents: [folderId]
+    };
+
+    const media = {
+      mimeType: mimetype,
+      body: require('stream').Readable.from(buffer)
+    };
+
+    const file = await drive.files.create({
+      resource: fileMetadata,
+      media: media,
+      fields: 'id, name, webViewLink, thumbnailLink'
+    });
+
+    // Make the file publicly accessible
+    await drive.permissions.create({
+      fileId: file.data.id,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone'
+      }
+    });
+
+    // Get the direct download link
+    const imageUrl = `https://drive.google.com/uc?export=view&id=${file.data.id}`;
+
+    console.log('Image uploaded successfully:', {
+      id: file.data.id,
+      name: file.data.name,
+      url: imageUrl
+    });
+
+    res.json({
+      success: true,
+      imageId: file.data.id,
+      imageName: file.data.name,
+      imageUrl: imageUrl,
+      thumbnailUrl: file.data.thumbnailLink
+    });
+
+  } catch (error) {
+    console.error('Error uploading image:', error);
+    res.status(500).json({ 
+      error: 'Failed to upload image',
+      details: error.message 
+    });
+  }
+});
+
+// Delete image endpoint
+app.delete('/api/delete-image/:imageId', auth, requirePermission('edit'), async (req, res) => {
+  try {
+    const { imageId } = req.params;
+    
+    const drive = getDriveClient();
+    
+    await drive.files.delete({
+      fileId: imageId
+    });
+
+    console.log('Image deleted successfully:', imageId);
+
+    res.json({
+      success: true,
+      message: 'Image deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Error deleting image:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete image',
+      details: error.message 
+    });
+  }
+});
 
 // AviationStack API endpoint
 app.get('/api/flight-status', auth, async (req, res) => {
