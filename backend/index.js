@@ -1075,6 +1075,205 @@ app.put('/api/itinerary/visibility', auth, requirePermission('edit'), async (req
   }
 });
 
+// Move activity between days endpoint
+app.post('/api/itinerary/move', auth, requirePermission('edit'), async (req, res) => {
+  console.log('\n🔄🔄🔄 MOVE ACTIVITY ENDPOINT CALLED 🔄🔄🔄');
+  console.log('Request body:', req.body);
+  try {
+    const { sourceDay, targetDay, targetDate, time, activity, notes, cost, link } = req.body;
+    
+    if (!sourceDay || !targetDay || !targetDate || !time || !activity) {
+      return res.status(400).json({ error: 'Source day, target day, target date, time, and activity are required' });
+    }
+    
+    if (sourceDay < 1 || sourceDay > 10 || targetDay < 1 || targetDay > 10) {
+      return res.status(400).json({ error: 'Day numbers must be between 1 and 10' });
+    }
+    
+    if (sourceDay === targetDay) {
+      return res.status(400).json({ error: 'Source and target days must be different' });
+    }
+    
+    const sourceSheetName = getSheetName(sourceDay);
+    const targetSheetName = getSheetName(targetDay);
+    const sheets = getSheetsClient();
+    
+    console.log(`=== MOVE ACTIVITY DEBUG ===`);
+    console.log(`Source Day: ${sourceDay} (${sourceSheetName})`);
+    console.log(`Target Day: ${targetDay} (${targetSheetName})`);
+    console.log(`Target Date: ${targetDate}`);
+    console.log(`Activity: ${activity}`);
+    console.log(`Time: ${time}`);
+    
+    // Performance Optimization: Invalidate cache for both days before operations
+    console.log(`Invalidating cache for Day ${sourceDay} and Day ${targetDay} before move`);
+    invalidateCache(`day:${sourceDay}`);
+    invalidateCache(`day:${targetDay}`);
+    
+    // Get current data from the source day sheet
+    const sourceValues = await getCachedDayData(sourceDay);
+    console.log(`Current data in ${sourceSheetName}:`, sourceValues);
+    
+    // Find the row to move by matching time and activity
+    let sourceRowIndex = -1;
+    let headerOffset = 0;
+    
+    // Check if first row is a header row
+    if (sourceValues.length > 0 && sourceValues[0] && sourceValues[0][0] === 'Date') {
+      headerOffset = 1;
+    }
+    
+    // Search for the matching activity in source sheet
+    for (let i = headerOffset; i < sourceValues.length; i++) {
+      const row = sourceValues[i];
+      if (row && row.length >= 2) {
+        const rowTime = (row[0] || '').trim();
+        const rowActivity = (row[1] || '').trim();
+        
+        console.log(`Checking source row ${i}: time="${rowTime}", activity="${rowActivity}"`);
+        console.log(`Looking for: time="${time.trim()}", activity="${activity.trim()}"`);
+        
+        if (rowTime === time.trim() && rowActivity === activity.trim()) {
+          sourceRowIndex = i;
+          console.log(`Found matching activity at source row ${i}`);
+          break;
+        }
+      }
+    }
+    
+    if (sourceRowIndex === -1) {
+      return res.status(404).json({ 
+        error: 'Activity not found in source day',
+        details: `No activity found with time "${time}" and activity "${activity}" in Day ${sourceDay}`
+      });
+    }
+    
+    // Get the current row data to preserve all information
+    const currentRow = sourceValues[sourceRowIndex] || [];
+    console.log(`Source row data:`, currentRow);
+    
+    // Get current data from the target day sheet
+    const targetValues = await getCachedDayData(targetDay);
+    console.log(`Current data in ${targetSheetName}:`, targetValues);
+    
+    // Find the next available row in target sheet
+    let targetRowIndex = targetValues.length;
+    
+    // Check if target sheet has a header row
+    if (targetValues.length > 0 && targetValues[0] && targetValues[0][0] === 'Date') {
+      targetRowIndex = targetValues.length;
+    }
+    
+    console.log(`Target row index: ${targetRowIndex + 1}`);
+    
+    // Create the new row data for target sheet
+    const newRow = [
+      time, // Column A: Time
+      activity, // Column B: Activity  
+      notes || '', // Column C: Notes
+      cost || '', // Column D: Cost
+      link || '', // Column E: Link
+      'true', // Column F: Visibility (set to visible by default)
+      currentRow[6] || '' // Column G: Image URL (preserve existing image)
+    ];
+    
+    console.log(`New row data for target:`, newRow);
+    
+    try {
+      // Step 1: Add the activity to the target day
+      console.log(`Adding activity to ${targetSheetName} at row ${targetRowIndex + 1}`);
+      
+      const addResponse = await rateLimitedSheetsCall(() =>
+        sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: `${targetSheetName}!A${targetRowIndex + 1}:${String.fromCharCode(65 + newRow.length - 1)}${targetRowIndex + 1}`,
+          valueInputOption: 'USER_ENTERED',
+          resource: {
+            values: [newRow]
+          }
+        })
+      );
+      
+      console.log(`Successfully added activity to ${targetSheetName}:`, addResponse.data);
+      
+      // Step 2: Delete the activity from the source day
+      console.log(`Deleting activity from ${sourceSheetName} at row ${sourceRowIndex + 1}`);
+      
+      // Get the sheet metadata to find the correct sheet ID for source sheet
+      const spreadsheet = await sheets.spreadsheets.get({
+        spreadsheetId: SHEET_ID,
+      });
+      
+      const sourceSheet = spreadsheet.data.sheets.find(s => s.properties.title === sourceSheetName);
+      if (!sourceSheet) {
+        return res.status(404).json({ error: `Source sheet ${sourceSheetName} not found` });
+      }
+      
+      const sourceSheetId = sourceSheet.properties.sheetId;
+      console.log(`Found source sheet ID:`, sourceSheetId);
+      
+      const deleteResponse = await rateLimitedSheetsCall(() =>
+        sheets.spreadsheets.batchUpdate({
+          spreadsheetId: SHEET_ID,
+          resource: {
+            requests: [
+              {
+                deleteDimension: {
+                  range: {
+                    sheetId: sourceSheetId,
+                    dimension: 'ROWS',
+                    startIndex: sourceRowIndex,
+                    endIndex: sourceRowIndex + 1
+                  }
+                }
+              }
+            ]
+          }
+        })
+      );
+      
+      console.log(`Successfully deleted activity from ${sourceSheetName}:`, deleteResponse.data);
+      
+      // Performance Optimization: Invalidate cache for both days after successful move
+      console.log(`Invalidating cache for Day ${sourceDay} and Day ${targetDay} after successful move`);
+      invalidateCache(`day:${sourceDay}`);
+      invalidateCache(`day:${targetDay}`);
+      
+      // Return success response
+      res.json({
+        success: true,
+        message: 'Activity moved successfully',
+        sourceDay: sourceDay,
+        targetDay: targetDay,
+        targetDate: targetDate,
+        movedActivity: { time, activity, notes, cost, link },
+        sourceRowDeleted: sourceRowIndex + 1,
+        targetRowAdded: targetRowIndex + 1
+      });
+      
+    } catch (operationError) {
+      console.error(`Error during move operation:`, operationError);
+      
+      // If we get a rate limit error, provide a helpful message
+      if (operationError.message && (operationError.message.includes('Quota exceeded') || operationError.code === 429)) {
+        res.status(429).json({ 
+          error: 'Rate limit exceeded. Please wait a moment and try again.',
+          details: 'Google Sheets API rate limit reached during move operation'
+        });
+      } else {
+        res.status(500).json({ 
+          error: 'Failed to move activity',
+          details: operationError.message 
+        });
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error moving activity:', error);
+    res.status(500).json({ error: 'Failed to move activity' });
+  }
+});
+
 // Test endpoint to check if upload-image is accessible
 app.get('/api/test-upload', (req, res) => {
   res.json({ message: 'Upload endpoint is accessible', timestamp: new Date().toISOString() });
