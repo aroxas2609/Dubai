@@ -28,6 +28,43 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
+// Test endpoint to verify server is working
+app.get('/api/test', (req, res) => {
+  console.log('=== TEST ENDPOINT CALLED ===');
+  res.json({ 
+    message: 'Server is working', 
+    timestamp: new Date().toISOString(),
+    version: '1.0.1',
+    debug: 'Debug endpoints are loaded'
+  });
+});
+
+// Test Dropbox token endpoint
+app.get('/api/test-dropbox', async (req, res) => {
+  console.log('=== TEST DROPBOX TOKEN ===');
+  try {
+    const dbx = getDropboxClient();
+    
+    // Test a simple API call to verify the token works
+    const accountInfo = await dbx.usersGetCurrentAccount();
+    console.log('Dropbox account info:', accountInfo.result);
+    
+    res.json({ 
+      success: true, 
+      message: 'Dropbox token is valid',
+      account: accountInfo.result
+    });
+  } catch (error) {
+    console.error('Dropbox token test failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Dropbox token test failed',
+      details: error.message,
+      status: error.status
+    });
+  }
+});
+
 // Performance Optimization: Caching System
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -168,10 +205,25 @@ function getSheetsClient() {
 
 function getDropboxClient() {
   const accessToken = process.env.DROPBOX_ACCESS_TOKEN;
+  console.log('=== DROPBOX CLIENT DEBUG ===');
+  console.log('Dropbox access token configured:', accessToken ? 'YES' : 'NO');
+  console.log('Token length:', accessToken ? accessToken.length : 0);
+  console.log('Token starts with:', accessToken ? accessToken.substring(0, 10) + '...' : 'N/A');
+  console.log('Token ends with:', accessToken ? '...' + accessToken.substring(accessToken.length - 10) : 'N/A');
+  console.log('Full token (first 50 chars):', accessToken ? accessToken.substring(0, 50) + '...' : 'N/A');
+  
   if (!accessToken) {
     throw new Error('DROPBOX_ACCESS_TOKEN not configured');
   }
-  return new Dropbox({ accessToken });
+  
+  try {
+    const dbx = new Dropbox({ accessToken });
+    console.log('Dropbox client created successfully');
+    return dbx;
+  } catch (error) {
+    console.error('Error creating Dropbox client:', error);
+    throw error;
+  }
 }
 
 // Helper function to get sheet name from day number
@@ -1281,8 +1333,15 @@ app.get('/api/test-upload', (req, res) => {
 
 // Image upload endpoint for Dropbox
 app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('image'), async (req, res) => {
+  console.log('=== UPLOAD IMAGE ENDPOINT CALLED ===');
+  console.log('Request received at:', new Date().toISOString());
+  console.log('Request headers:', req.headers);
+  console.log('Request body keys:', Object.keys(req.body || {}));
+  console.log('Request file:', req.file ? 'Present' : 'Missing');
+  
   try {
     if (!req.file) {
+      console.log('No file provided in request');
       return res.status(400).json({ error: 'No image file provided' });
     }
 
@@ -1299,6 +1358,12 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
     }
 
     console.log('Starting image upload to Dropbox...');
+    console.log('File details:', {
+      originalname,
+      mimetype,
+      size: buffer.length,
+      timestamp: Date.now()
+    });
     
     const dbx = getDropboxClient();
     
@@ -1307,12 +1372,18 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
     const fileExtension = originalname.split('.').pop();
     const fileName = `dubai-trip-images/${timestamp}_${originalname}`;
     
+    console.log('Uploading to Dropbox path:', `/${fileName}`);
+    
     // Upload to Dropbox
     const uploadResponse = await dbx.filesUpload({
       path: `/${fileName}`,
       contents: buffer,
       mode: 'add'
     });
+    
+    console.log('Upload response received:', uploadResponse.result);
+    
+    console.log('Creating shared link for path:', uploadResponse.result.path_display);
     
     // Get a shared link (public) with robust settings for mobile compatibility
     const sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
@@ -1325,9 +1396,14 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
       }
     });
     
+    console.log('Shared link response:', sharedLinkResponse.result);
+    
     // Convert to direct link for public access - use more reliable format
     const sharedLink = sharedLinkResponse.result.url;
     const directLink = sharedLink.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
+    
+    console.log('Original shared link:', sharedLink);
+    console.log('Converted direct link:', directLink);
     
     console.log('Image uploaded successfully to Dropbox:', fileName);
     
@@ -1342,9 +1418,17 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
 
   } catch (error) {
     console.error('Error uploading image to Dropbox:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      status: error.status,
+      statusCode: error.statusCode
+    });
     res.status(500).json({ 
       error: 'Failed to upload image',
-      details: error.message 
+      details: error.message,
+      code: error.code || 'UNKNOWN_ERROR'
     });
   }
 });
