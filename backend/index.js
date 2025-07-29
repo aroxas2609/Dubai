@@ -122,8 +122,6 @@ const USERS = {
 // Basic Auth Middleware
 const auth = (req, res, next) => {
   const user = basicAuth(req);
-  console.log('Auth attempt:', user);
-  console.log('Available users:', Object.keys(USERS));
   
   if (!user) {
     res.set('WWW-Authenticate', 'Basic realm=\"Dubai Trip\"');
@@ -131,12 +129,8 @@ const auth = (req, res, next) => {
   }
   
   const userConfig = USERS[user.name];
-  console.log('User config for', user.name, ':', userConfig);
   
   if (!userConfig || userConfig.password !== user.pass) {
-    console.log('Authentication failed for', user.name);
-    console.log('Expected password:', userConfig?.password);
-    console.log('Provided password:', user.pass);
     res.set('WWW-Authenticate', 'Basic realm=\"Dubai Trip\"');
     return res.status(401).send('Invalid credentials.');
   }
@@ -148,7 +142,6 @@ const auth = (req, res, next) => {
     permissions: userConfig.permissions
   };
   
-  console.log('Authenticated user:', req.user);
   next();
 };
 
@@ -179,7 +172,6 @@ function getSheetsClient() {
   if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT) {
     try {
       credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON_CONTENT);
-      console.log('Using service account from environment variable');
     } catch (parseError) {
       console.error('Error parsing service account from environment:', parseError.message);
       throw new Error('Invalid service account JSON in environment variable');
@@ -189,7 +181,6 @@ function getSheetsClient() {
     try {
       const serviceAccountPath = path.join(__dirname, process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
       credentials = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-      console.log('Using service account from file');
     } catch (fileError) {
       console.error('Error reading service account file:', fileError.message);
       throw new Error('Service account file not found and no environment variable set');
@@ -205,12 +196,6 @@ function getSheetsClient() {
 
 function getDropboxClient() {
   const accessToken = process.env.DROPBOX_ACCESS_TOKEN;
-  console.log('=== DROPBOX CLIENT DEBUG ===');
-  console.log('Dropbox access token configured:', accessToken ? 'YES' : 'NO');
-  console.log('Token length:', accessToken ? accessToken.length : 0);
-  console.log('Token starts with:', accessToken ? accessToken.substring(0, 10) + '...' : 'N/A');
-  console.log('Token ends with:', accessToken ? '...' + accessToken.substring(accessToken.length - 10) : 'N/A');
-  console.log('Full token (first 50 chars):', accessToken ? accessToken.substring(0, 50) + '...' : 'N/A');
   
   if (!accessToken) {
     throw new Error('DROPBOX_ACCESS_TOKEN not configured');
@@ -218,7 +203,6 @@ function getDropboxClient() {
   
   try {
     const dbx = new Dropbox({ accessToken });
-    console.log('Dropbox client created successfully');
     return dbx;
   } catch (error) {
     console.error('Error creating Dropbox client:', error);
@@ -318,7 +302,7 @@ async function getCachedHeaders() {
   let headersData = getCache(cacheKey);
   
   if (!headersData) {
-    console.log('Headers not in cache, fetching from sheet...');
+    // Fetching headers from sheet
     const sheets = getSheetsClient();
     try {
       const headersResponse = await rateLimitedSheetsCall(() => 
@@ -349,7 +333,7 @@ async function getCachedDayData(dayNumber) {
   let dayData = getCache(cacheKey);
   
   if (!dayData) {
-    console.log(`Day ${dayNumber} not in cache, fetching from sheet...`);
+    // Fetching day data from sheet
     const sheets = getSheetsClient();
     const sheetName = getSheetName(dayNumber);
     
@@ -370,7 +354,7 @@ async function getCachedDayData(dayNumber) {
       setCache(cacheKey, dayData);
     }
   } else {
-    console.log(`Using cached data for Day ${dayNumber}`);
+    // Using cached data
   }
   
   return dayData;
@@ -839,7 +823,7 @@ app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, re
 
 // Performance Optimization: Delete activity with minimal response
 app.delete('/api/itinerary/delete', auth, requirePermission('delete'), async (req, res) => {
-  console.log('\n🔥🔥🔥 DELETE ENDPOINT CALLED 🔥🔥🔥');
+  console.log('🗑️ Delete activity requested');
   console.log('Request body:', req.body);
   try {
     const { day, time, activity } = req.body;
@@ -936,7 +920,7 @@ app.delete('/api/itinerary/delete', auth, requirePermission('delete'), async (re
     });
     
     console.log(`Successfully deleted activity from ${sheetName}:`, deleteResponse.data);
-    console.log('🔥🔥🔥 DELETE OPERATION COMPLETED SUCCESSFULLY 🔥🔥🔥');
+    console.log('✅ Activity deleted successfully');
     
     // Performance Optimization: Invalidate cache for this day only
     invalidateCache(`day:${dayNumber}`);
@@ -1011,7 +995,7 @@ app.delete('/api/itinerary/delete', auth, requirePermission('delete'), async (re
             );
       
       console.log(`Successfully cleared row content in ${sheetName}:`, clearResponse.data);
-      console.log('🔥🔥🔥 FALLBACK CLEAR OPERATION COMPLETED 🔥🔥🔥');
+      console.log('✅ Fallback clear completed');
       
             // Performance Optimization: Invalidate cache for this day only
             invalidateCache(`day:${dayNumber}`);
@@ -1333,15 +1317,8 @@ app.get('/api/test-upload', (req, res) => {
 
 // Image upload endpoint for Dropbox
 app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('image'), async (req, res) => {
-  console.log('=== UPLOAD IMAGE ENDPOINT CALLED ===');
-  console.log('Request received at:', new Date().toISOString());
-  console.log('Request headers:', req.headers);
-  console.log('Request body keys:', Object.keys(req.body || {}));
-  console.log('Request file:', req.file ? 'Present' : 'Missing');
-  
   try {
     if (!req.file) {
-      console.log('No file provided in request');
       return res.status(400).json({ error: 'No image file provided' });
     }
 
@@ -1356,23 +1333,12 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
     if (buffer.length > 10 * 1024 * 1024) {
       return res.status(400).json({ error: 'Image file too large. Maximum size is 10MB.' });
     }
-
-    console.log('Starting image upload to Dropbox...');
-    console.log('File details:', {
-      originalname,
-      mimetype,
-      size: buffer.length,
-      timestamp: Date.now()
-    });
     
     const dbx = getDropboxClient();
     
     // Create a unique filename
     const timestamp = Date.now();
-    const fileExtension = originalname.split('.').pop();
     const fileName = `dubai-trip-images/${timestamp}_${originalname}`;
-    
-    console.log('Uploading to Dropbox path:', `/${fileName}`);
     
     // Upload to Dropbox
     const uploadResponse = await dbx.filesUpload({
@@ -1380,10 +1346,6 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
       contents: buffer,
       mode: 'add'
     });
-    
-    console.log('Upload response received:', uploadResponse.result);
-    
-    console.log('Creating shared link for path:', uploadResponse.result.path_display);
     
     // Get a shared link (public) with robust settings for mobile compatibility
     const sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
@@ -1396,16 +1358,11 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
       }
     });
     
-    console.log('Shared link response:', sharedLinkResponse.result);
-    
-    // Convert to direct link for public access - use more reliable format
+    // Convert to direct link for public access
     const sharedLink = sharedLinkResponse.result.url;
     const directLink = sharedLink.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
     
-    console.log('Original shared link:', sharedLink);
-    console.log('Converted direct link:', directLink);
-    
-    console.log('Image uploaded successfully to Dropbox:', fileName);
+    console.log('✅ Image uploaded successfully:', fileName);
     
     res.json({
       success: true,
@@ -1417,14 +1374,7 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
     });
 
   } catch (error) {
-    console.error('Error uploading image to Dropbox:', error);
-    console.error('Error stack:', error.stack);
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      status: error.status,
-      statusCode: error.statusCode
-    });
+    console.error('❌ Error uploading image:', error.message);
     res.status(500).json({ 
       error: 'Failed to upload image',
       details: error.message,
@@ -1608,7 +1558,7 @@ app.get('/api/flight-status', auth, async (req, res) => {
 
 // Handle all other routes by serving the main HTML file (for SPA routing)
 app.use((req, res) => {
-  console.log('=== CATCH-ALL ROUTE ===');
+  // Catch-all route for static files
   console.log('Request path:', req.path);
   console.log('Request method:', req.method);
   
