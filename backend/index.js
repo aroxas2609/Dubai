@@ -502,7 +502,7 @@ app.get('/api/itinerary', auth, async (req, res) => {
                 return;
               }
               
-              // Create activity row with empty header fields: [Date, Day, Title, Time, Activity, Notes, Cost, Link, Visibility, Image]
+              // Create activity row with empty header fields: [Date, Day, Title, Time, Activity, Notes, Cost, Link, Visibility, Image, Reservation]
               const activityRow = [
                 '', // Empty Date (will be filled by the day header)
                 '', // Empty Day (will be filled by the day header)
@@ -513,7 +513,8 @@ app.get('/api/itinerary', auth, async (req, res) => {
                 row[3] || '', // Cost
                 row[4] || '', // Link
                 row[5] || 'true', // Visibility (default to true if not set)
-                row[6] || '' // Image URL
+                row[6] || '', // Image URL
+                row[7] || '' // Reservation (NEW - Column H)
               ];
               allData.push(activityRow);
             }
@@ -536,7 +537,7 @@ app.get('/api/itinerary', auth, async (req, res) => {
 // Performance Optimization: Add new activity with minimal response
 app.post('/api/itinerary/add', auth, requirePermission('add'), async (req, res) => {
   try {
-    const { day, time, activity, notes, cost, link, image } = req.body;
+    const { day, time, activity, notes, reservation, cost, link, image } = req.body;
     
     if (!day || !time || !activity) {
       return res.status(400).json({ error: 'Day, time, and activity are required' });
@@ -550,21 +551,22 @@ app.post('/api/itinerary/add', auth, requirePermission('add'), async (req, res) 
     const sheetName = getSheetName(dayNumber);
     const sheets = getSheetsClient();
     
-    console.log(`Adding activity to ${sheetName}:`, { time, activity, notes, cost, link });
+    console.log(`Adding activity to ${sheetName}:`, { time, activity, notes, cost, link, image });
     
     // Get current data from the day sheet (use cache if available)
     const values = await getCachedDayData(dayNumber);
     console.log(`Current data in ${sheetName}:`, values);
     
-    // Prepare the new row data for the new structure (Time, Activity, Notes, Cost, Link, Visibility, Image)
+    // Prepare the new row data
     const newRow = [
-      time || '',
-      activity,
-      notes || '',
-      cost || '',
-      link || '',
-      'true', // Default to visible for new activities
-      image || '' // Use provided image URL or empty string
+      time || '', // Column A: Time
+      activity, // Column B: Activity
+      notes || '', // Column C: Notes
+      cost || '', // Column D: Cost
+      link || '', // Column E: Link
+      'true', // Column F: Visibility (default to visible for new activities)
+      image || '', // Column G: Image URL
+      reservation || '' // Column H: Reservation (NEW - at the end)
     ];
     
     // Find the correct position to insert based on time
@@ -627,6 +629,8 @@ app.post('/api/itinerary/add', auth, requirePermission('add'), async (req, res) 
       const sheetId = await getSheetId(sheetName);
       console.log(`Got sheet ID: ${sheetId} for sheet: ${sheetName}`);
       
+
+      
       // Insert the new row at the correct position
       const insertResponse = await sheets.spreadsheets.batchUpdate({
         spreadsheetId: SHEET_ID,
@@ -650,11 +654,10 @@ app.post('/api/itinerary/add', auth, requirePermission('add'), async (req, res) 
       console.log(`Row inserted successfully, now updating with data`);
       
       // Now update the inserted row with the new data
-      // Use USER_ENTERED to preserve the original time format
       const updateResponse = await sheets.spreadsheets.values.update({
         spreadsheetId: SHEET_ID,
-        range: `${sheetName}!A${insertRowIndex + 1}:G${insertRowIndex + 1}`,
-        valueInputOption: 'USER_ENTERED', // Changed from RAW to USER_ENTERED
+        range: `${sheetName}!A${insertRowIndex + 1}:${String.fromCharCode(65 + newRow.length - 1)}${insertRowIndex + 1}`,
+        valueInputOption: 'USER_ENTERED',
         resource: {
           values: [newRow]
         }
@@ -687,9 +690,9 @@ app.post('/api/itinerary/add', auth, requirePermission('add'), async (req, res) 
     res.json({
       success: true,
       message: 'Activity added successfully',
-      updatedRange: `${sheetName}!A${insertRowIndex + 1}:G${insertRowIndex + 1}`,
+      updatedRange: `${sheetName}!A${insertRowIndex + 1}:${String.fromCharCode(65 + newRow.length - 1)}${insertRowIndex + 1}`,
       day: dayNumber,
-      newActivity: { time, activity, notes, cost, link }
+              newActivity: { time, activity, notes, reservation, cost, link, image }
     });
     
   } catch (error) {
@@ -701,7 +704,7 @@ app.post('/api/itinerary/add', auth, requirePermission('add'), async (req, res) 
 // Performance Optimization: Update existing activity with minimal response
 app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, res) => {
   try {
-    const { day, originalTime, originalActivity, time, activity, notes, cost, link } = req.body;
+    const { day, originalTime, originalActivity, time, activity, notes, reservation, cost, link, image } = req.body;
     
     if (!day || !originalTime || !originalActivity || !time || !activity) {
       return res.status(400).json({ 
@@ -710,7 +713,7 @@ app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, re
     }
     
     console.log(`Updating activity in ${day}:`, { 
-      originalTime, originalActivity, time, activity, notes, cost, link 
+      originalTime, originalActivity, time, activity, notes, cost, link, image
     });
     
     const dayNumber = parseInt(day.replace(/\D/g, ''));
@@ -728,6 +731,11 @@ app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, re
     // Get current data from the day sheet (will fetch fresh data since cache was invalidated)
     const values = await getCachedDayData(dayNumber);
     console.log(`Current data in ${sheetName}:`, values);
+    console.log(`Values length:`, values ? values.length : 'undefined');
+    if (values && values.length > 0) {
+      console.log(`First row:`, values[0]);
+      console.log(`First row length:`, values[0] ? values[0].length : 'undefined');
+    }
     
     // Find the row to update by matching original time and activity
     let targetRowIndex = -1;
@@ -739,8 +747,12 @@ app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, re
     }
     
     // Search for the matching activity
+    console.log(`Searching for activity with time="${originalTime.trim()}" and activity="${originalActivity.trim()}"`);
+    console.log(`Header offset: ${headerOffset}, Total rows: ${values.length}`);
+    
     for (let i = headerOffset; i < values.length; i++) {
       const row = values[i];
+      console.log(`Row ${i}:`, row);
       if (row && row.length >= 2) {
         const rowTime = (row[0] || '').trim();
         const rowActivity = (row[1] || '').trim();
@@ -751,8 +763,10 @@ app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, re
         if (rowTime === originalTime.trim() && rowActivity === originalActivity.trim()) {
           targetRowIndex = i;
           console.log(`Found matching activity at row ${i}`);
-                break;
-              }
+          break;
+        }
+      } else {
+        console.log(`Row ${i} is invalid:`, row);
       }
     }
     
@@ -765,21 +779,73 @@ app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, re
     
     console.log(`Updating activity in ${sheetName} at row ${targetRowIndex + 1}:`, { time, activity, notes, cost, link, image: req.body.image });
     
-    // Get the current row to preserve existing data structure
+        // Get the current row to preserve existing data structure
     const currentRow = values[targetRowIndex] || [];
+    console.log(`Current row at index ${targetRowIndex}:`, currentRow);
+    console.log(`Current row length:`, currentRow.length);
     
-    // Create the updated row data with correct column structure
-    const updatedRow = [
-      time, // Column A: Time
-      activity, // Column B: Activity  
-      notes || '', // Column C: Notes
-      cost || '', // Column D: Cost
-      link || '', // Column E: Link
-      currentRow[5] || 'true', // Column F: Visibility (preserve existing)
-      req.body.image || '' // Column G: Image URL
-    ];
+          // Create the updated row data
+      const updatedRow = [
+        time, // Column A: Time
+        activity, // Column B: Activity  
+        notes || '', // Column C: Notes
+        cost || '', // Column D: Cost
+        link || '', // Column E: Link
+        'true', // Column F: Visibility (default to true for updates)
+        req.body.image || '', // Column G: Image URL
+        reservation || '' // Column H: Reservation (NEW - at the end)
+      ];
     
     try {
+      // Get the sheet metadata to find the correct sheet ID
+      const spreadsheet = await sheets.spreadsheets.get({
+        spreadsheetId: SHEET_ID,
+      });
+      
+      const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
+      if (!sheet) {
+        return res.status(404).json({ error: `Sheet ${sheetName} not found` });
+      }
+      
+      const sheetId = sheet.properties.sheetId;
+      const currentColumnCount = sheet.properties.gridProperties.columnCount;
+      const requiredColumns = updatedRow.length;
+      
+      console.log(`Sheet ${sheetName} currently has ${currentColumnCount} columns, need ${requiredColumns}`);
+      console.log(`Updated row structure:`, updatedRow);
+      
+      // Add columns if needed
+      if (currentColumnCount < requiredColumns) {
+        console.log(`Adding ${requiredColumns - currentColumnCount} columns to ${sheetName}`);
+        
+        try {
+          const addColumnsResponse = await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: SHEET_ID,
+            resource: {
+              requests: [
+                {
+                  insertDimension: {
+                    range: {
+                      sheetId: sheetId,
+                      dimension: 'COLUMNS',
+                      startIndex: currentColumnCount,
+                      endIndex: requiredColumns
+                    },
+                    inheritFromBefore: false
+                  }
+                }
+              ]
+            }
+          });
+          
+          console.log(`Successfully added columns to ${sheetName}:`, addColumnsResponse.data);
+        } catch (columnError) {
+          console.error(`Error adding columns to ${sheetName}:`, columnError);
+          // Continue with the update even if column addition fails
+        }
+      }
+      
+      // Now update the row with the new data
       const updateResponse = await rateLimitedSheetsCall(() =>
         sheets.spreadsheets.values.update({
           spreadsheetId: SHEET_ID,
@@ -803,21 +869,33 @@ app.put('/api/itinerary/update', auth, requirePermission('edit'), async (req, re
         message: 'Activity updated successfully',
         updatedRange: updateResponse.data.updatedRange,
         day: dayNumber,
-        updatedActivity: { time, activity, notes, cost, link },
+        updatedActivity: { time, activity, notes, reservation, cost, link, image },
         originalActivity: { time: originalTime, activity: originalActivity }
       });
     } catch (updateError) {
       console.error(`Error updating activity in ${sheetName}:`, updateError);
+      console.error('Update error details:', {
+        sheetName,
+        targetRowIndex,
+        updatedRow,
+        error: updateError.message,
+        stack: updateError.stack
+      });
       if (updateError.message.includes('Quota exceeded')) {
         res.status(429).json({ error: 'Rate limit exceeded. Please try again in a few seconds.' });
       } else {
-        res.status(500).json({ error: 'Failed to update activity' });
+        res.status(500).json({ error: 'Failed to update activity', details: updateError.message });
       }
     }
     
   } catch (error) {
     console.error('Error updating activity:', error);
-    res.status(500).json({ error: 'Failed to update activity' });
+    console.error('Main error details:', {
+      error: error.message,
+      stack: error.stack,
+      body: req.body
+    });
+    res.status(500).json({ error: 'Failed to update activity', details: error.message });
   }
 });
 
@@ -1210,7 +1288,8 @@ app.post('/api/itinerary/move', auth, requirePermission('edit'), async (req, res
       cost || '', // Column D: Cost
       link || '', // Column E: Link
       'true', // Column F: Visibility (set to visible by default)
-      currentRow[6] || '' // Column G: Image URL (preserve existing image)
+      currentRow[6] || '', // Column G: Image URL (preserve existing image)
+      currentRow[9] || '' // Column H: Reservation (preserve existing reservation)
     ];
     
     console.log(`New row data for target:`, newRow);
@@ -1424,11 +1503,11 @@ app.post('/api/fix-dropbox-links', auth, requirePermission('edit'), async (req, 
       const dayData = await getCachedDayData(dayNumber);
       if (dayData && dayData.length > 0) {
         dayData.forEach((row, index) => {
-          if (row.length >= 7 && row[6] && row[6].includes('dropboxusercontent.com')) {
+          if (row.length >= 8 && row[7] && row[7].includes('dropboxusercontent.com')) {
             allActivities.push({
               day: dayNumber,
               rowIndex: index,
-              imageUrl: row[6]
+              imageUrl: row[7]
             });
           }
         });
@@ -1556,6 +1635,26 @@ app.get('/api/flight-status', auth, async (req, res) => {
   }
 });
 
+// Test route to verify route registration
+app.get('/api/test-route', (req, res) => {
+  res.json({ message: 'Test route is working' });
+});
+
+// Debug route to test route registration
+app.get('/api/debug-route', (req, res) => {
+  res.json({ message: 'Debug route is working', timestamp: new Date().toISOString() });
+});
+
+
+
+
+
+
+
+
+
+
+
 // Handle all other routes by serving the main HTML file (for SPA routing)
 app.use((req, res) => {
   // Catch-all route for static files
@@ -1567,7 +1666,8 @@ app.use((req, res) => {
     console.log('Serving HTML file for:', req.path);
     res.sendFile(path.join(__dirname, '../frontend/index.html'));
   } else {
-    console.log('API endpoint not found:', req.path);
+    // Don't log API routes as "not found" since they might be valid
+    console.log('Unhandled API route:', req.path);
     res.status(404).json({ error: 'API endpoint not found' });
   }
 });
