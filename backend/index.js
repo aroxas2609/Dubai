@@ -10,7 +10,14 @@ const path = require('path');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const { Dropbox } = require('dropbox');
-const cloudinaryStorage = require('./cloudinary-storage');
+// Try to load Cloudinary, but don't fail if it's not available
+let cloudinaryStorage;
+try {
+  cloudinaryStorage = require('./cloudinary-storage');
+} catch (error) {
+  console.log('⚠️ Cloudinary not available, falling back to Dropbox only');
+  cloudinaryStorage = null;
+}
 const app = express();
 const PORT = process.env.PORT || 3002;
 
@@ -69,11 +76,23 @@ app.get('/api/test-dropbox', async (req, res) => {
 // Cloudinary storage info endpoint
 app.get('/api/storage-info', (req, res) => {
   try {
-    const storageInfo = cloudinaryStorage.getStorageInfo();
-    res.json({
-      success: true,
-      storage: storageInfo
-    });
+    if (cloudinaryStorage) {
+      const storageInfo = cloudinaryStorage.getStorageInfo();
+      res.json({
+        success: true,
+        storage: storageInfo
+      });
+    } else {
+      res.json({
+        success: true,
+        storage: {
+          storageType: 'dropbox',
+          provider: 'Dropbox',
+          note: 'Cloudinary not available, using Dropbox only',
+          configured: false
+        }
+      });
+    }
   } catch (error) {
     console.error('Error getting storage info:', error);
     res.status(500).json({
@@ -86,8 +105,16 @@ app.get('/api/storage-info', (req, res) => {
 // Test Cloudinary connection endpoint
 app.get('/api/test-cloudinary', async (req, res) => {
   try {
-    const result = await cloudinaryStorage.testConnection();
-    res.json(result);
+    if (cloudinaryStorage) {
+      const result = await cloudinaryStorage.testConnection();
+      res.json(result);
+    } else {
+      res.json({
+        success: false,
+        error: 'Cloudinary not available',
+        note: 'Package not installed or module failed to load'
+      });
+    }
   } catch (error) {
     console.error('Cloudinary test failed:', error);
     res.status(500).json({
@@ -1450,7 +1477,7 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
     }
 
     // Check if we should use Cloudinary or Dropbox
-    const useCloudinary = cloudinaryStorage.isConfigured();
+    const useCloudinary = cloudinaryStorage && cloudinaryStorage.isConfigured();
     
     if (useCloudinary) {
       // Use Cloudinary (recommended)

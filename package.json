@@ -8,11 +8,16 @@
     "dev": "node backend/index.js",
     "build": "echo 'No build step required for static site'"
   },
-  "keywords": ["dubai", "itinerary", "travel"],
+  "keywords": [
+    "dubai",
+    "itinerary",
+    "travel"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "basic-auth": "^2.0.1",
+    "cloudinary": "^1.41.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "dropbox": "^10.34.0",
@@ -23,4 +28,4 @@
   "engines": {
     "node": ">=16.0.0"
   }
-} 
+}
