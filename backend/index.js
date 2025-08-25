@@ -10,6 +10,7 @@ const path = require('path');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 const { Dropbox } = require('dropbox');
+const cloudinaryStorage = require('./cloudinary-storage');
 const app = express();
 const PORT = process.env.PORT || 3002;
 
@@ -64,6 +65,41 @@ app.get('/api/test-dropbox', async (req, res) => {
     });
   }
 });
+
+// Cloudinary storage info endpoint
+app.get('/api/storage-info', (req, res) => {
+  try {
+    const storageInfo = cloudinaryStorage.getStorageInfo();
+    res.json({
+      success: true,
+      storage: storageInfo
+    });
+  } catch (error) {
+    console.error('Error getting storage info:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get storage info'
+    });
+  }
+});
+
+// Test Cloudinary connection endpoint
+app.get('/api/test-cloudinary', async (req, res) => {
+  try {
+    const result = await cloudinaryStorage.testConnection();
+    res.json(result);
+  } catch (error) {
+    console.error('Cloudinary test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Cloudinary test failed',
+      details: error.message
+    });
+  }
+});
+
+// Note: Images are now served directly from Cloudinary CDN
+// No need for local image serving endpoints
 
 // Performance Optimization: Caching System
 const cache = new Map();
@@ -1394,7 +1430,7 @@ app.get('/api/test-upload', (req, res) => {
   res.json({ message: 'Upload endpoint is accessible', timestamp: new Date().toISOString() });
 });
 
-// Image upload endpoint for Dropbox
+// Image upload endpoint - now supports both local storage and Dropbox
 app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
@@ -1412,45 +1448,76 @@ app.post('/api/upload-image', auth, requirePermission('edit'), upload.single('im
     if (buffer.length > 10 * 1024 * 1024) {
       return res.status(400).json({ error: 'Image file too large. Maximum size is 10MB.' });
     }
+
+    // Check if we should use Cloudinary or Dropbox
+    const useCloudinary = cloudinaryStorage.isConfigured();
     
-    const dbx = getDropboxClient();
-    
-    // Create a unique filename
-    const timestamp = Date.now();
-    const fileName = `dubai-trip-images/${timestamp}_${originalname}`;
-    
-    // Upload to Dropbox
-    const uploadResponse = await dbx.filesUpload({
-      path: `/${fileName}`,
-      contents: buffer,
-      mode: 'add'
-    });
-    
-    // Get a shared link (public) with robust settings for mobile compatibility
-    const sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
-      path: uploadResponse.result.path_display,
-      settings: {
-        requested_visibility: 'public',
-        audience: 'public',
-        access: 'viewer',
-        allow_download: true
+    if (useCloudinary) {
+      // Use Cloudinary (recommended)
+      try {
+        const uploadResult = await cloudinaryStorage.uploadImage(buffer, originalname);
+        
+        console.log('✅ Image uploaded to Cloudinary:', uploadResult.publicId);
+        
+        res.json({
+          success: true,
+          imageId: uploadResult.publicId,
+          imageName: originalname,
+          imageUrl: uploadResult.imageUrl,
+          thumbnailUrl: uploadResult.thumbnailUrl,
+          storageType: 'cloudinary'
+        });
+      } catch (cloudinaryError) {
+        console.error('❌ Cloudinary upload failed, falling back to Dropbox:', cloudinaryError.message);
+        // Fall back to Dropbox if Cloudinary fails
+        throw new Error('Cloudinary upload failed, please use Dropbox');
       }
-    });
-    
-    // Convert to direct link for public access
-    const sharedLink = sharedLinkResponse.result.url;
-    const directLink = sharedLink.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '?raw=1');
-    
-    console.log('✅ Image uploaded successfully:', fileName);
-    
-    res.json({
-      success: true,
-      imageId: uploadResponse.result.id,
-      imageName: originalname,
-      imageUrl: directLink,
-      thumbnailUrl: directLink,
-      storageType: 'dropbox'
-    });
+    } else {
+      // Use Dropbox (existing functionality)
+      try {
+        const dbx = getDropboxClient();
+        
+        // Create a unique filename
+        const timestamp = Date.now();
+        const fileName = `dubai-trip-images/${timestamp}_${originalname}`;
+        
+        // Upload to Dropbox
+        const uploadResponse = await dbx.filesUpload({
+          path: `/${fileName}`,
+          contents: buffer,
+          mode: 'add'
+        });
+        
+        // Get a shared link (public) with robust settings for mobile compatibility
+        const sharedLinkResponse = await dbx.sharingCreateSharedLinkWithSettings({
+          path: uploadResponse.result.path_display,
+          settings: {
+            requested_visibility: 'public',
+            audience: 'public',
+            access: 'viewer',
+            allow_download: true
+          }
+        });
+        
+        // Convert to direct link for public access
+        const sharedLink = sharedLinkResponse.result.url;
+        const directLink = sharedLink.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?raw=1', '?raw=1');
+        
+        console.log('✅ Image uploaded to Dropbox:', fileName);
+        
+        res.json({
+          success: true,
+          imageId: uploadResponse.result.id,
+          imageName: originalname,
+          imageUrl: directLink,
+          thumbnailUrl: directLink,
+          storageType: 'dropbox'
+        });
+      } catch (dropboxError) {
+        console.error('❌ Dropbox upload failed:', dropboxError.message);
+        throw dropboxError;
+      }
+    }
 
   } catch (error) {
     console.error('❌ Error uploading image:', error.message);
